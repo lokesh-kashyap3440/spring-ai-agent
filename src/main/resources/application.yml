@@ -1,0 +1,58 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: ai-agent
+
+  kafka:
+    bootstrap-servers: localhost:9093
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: ai-agent-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        "[spring.json.trusted.packages]": "com.example.aiagent.*"
+  data:
+    redis:
+      host: localhost
+      port: 6380
+      timeout: 5000
+
+  servlet:
+    multipart:
+      max-file-size: 1024MB
+      max-request-size: 1024MB
+
+  ai:
+    ollama:
+      base-url: http://localhost:11434
+      embedding:
+        model: nomic-embed-text
+        options:
+          temperature: 0.0
+    vectorstore:
+      simple:
+        initialize-schema: true
+
+app:
+  ollama:
+    base-url: http://localhost:11434
+    model: qwen3.5:4b
+    timeout: 120
+    max-tokens: 2048
+  agent:
+    max-iterations: 10
+    memory-size: 20
+  kafka:
+    topics:
+      events: ai-agent-events
+      chat: ai-agent-chat
+  mcp:
+    server:
+      name: ai-agent-tools
+      version: 1.0.0

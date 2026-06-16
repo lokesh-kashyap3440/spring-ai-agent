@@ -1,0 +1,85 @@
+flowchart TB
+    subgraph Clients["MCP Clients"]
+        direction TB
+        Client1["JSON-RPC Client"]
+        Client2["SSE Client"]
+    end
+
+    subgraph SpringBoot["Spring Boot Application (Port 8082)"]
+        direction TB
+        
+        subgraph MCP["MCP Server Controller"]
+            direction TB
+            SSE["GET /mcp/sse"]
+            RPC["POST /mcp"]
+            MSG["POST /mcp/message"]
+        end
+        
+        subgraph Agent["ReAct Agent"]
+            direction TB
+            ReAct["Thought → Action → Observation"]
+            MaxIter["Max 10 iterations"]
+        end
+        
+        subgraph Services["Services"]
+            direction LR
+            ToolReg["Tool Registry"]
+            Mem["Agent Memory Service"]
+            OllamaSvc["Ollama Service"]
+            KafkaPub["Kafka Event Publisher"]
+        end
+        
+        subgraph Tools["Available Tools"]
+            direction TB
+            Weather["get_weather"]
+            News["get_news"]
+            Calc["calculate"]
+            DB["query_database"]
+            RAG["rag_search"]
+            Upload["upload_document"]
+        end
+        
+        VectorStore["SimpleVectorStore<br/>(In-Memory RAG)"]
+    end
+
+    subgraph Infrastructure["Infrastructure"]
+        direction TB
+        Redis[("Redis<br/>Port 6380")]
+        Kafka[("Kafka<br/>Port 9093")]
+    end
+
+    subgraph Ollama["Ollama (Port 11434)"]
+        direction TB
+        LLM["qwen3.5:4b"]
+        Embed["nomic-embed-text"]
+    end
+
+    %% Connections
+    Client1 --> RPC
+    Client2 --> SSE
+    Client1 -.->|SSE Events | Client2
+    
+    SSE --> MCP
+    RPC --> MCP
+    MSG --> MCP
+    MCP --> Agent
+    
+    Agent --> ToolReg
+    Agent --> Mem
+    Agent --> OllamaSvc
+    
+    ToolReg --> Tools
+    Tools --> VectorStore
+    
+    Mem <--> Redis
+    KafkaPub --> Kafka
+    OllamaSvc <--> Ollama
+    
+    style SpringBoot fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    style MCP fill:#fff3cd,stroke:#ffc107,stroke-width:2px
+    style Agent fill:#d4edda,stroke:#28a745,stroke-width:2px
+    style Services fill:#f8d7da,stroke:#dc3545,stroke-width:2px
+    style Tools fill:#e2e3e5,stroke:#6c757d,stroke-width:2px
+    style VectorStore fill:#d1ecf1,stroke:#17a2b8,stroke-width:2px
+    style Infrastructure fill:#f5f5f5,stroke:#999,stroke-width:2px
+    style Ollama fill:#fff9e6,stroke:#ff9800,stroke-width:2px
