@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 @Service
-@ConditionalOnProperty(name = "app.ai.provider", havingValue = "nvidia")
+@ConditionalOnProperty(name = "app.ai.provider", havingValue = "nvidia", matchIfMissing = true)
 public class NvidiaService implements AiService {
 
     private static final Logger log = LoggerFactory.getLogger(NvidiaService.class);

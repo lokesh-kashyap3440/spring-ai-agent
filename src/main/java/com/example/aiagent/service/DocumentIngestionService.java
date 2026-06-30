@@ -83,7 +83,7 @@ public class DocumentIngestionService {
 
     public List<Document> search(String query, int topK) {
         return vectorStore.similaritySearch(
-                SearchRequest.builder().query(query).topK(topK).build()
+                SearchRequest.builder().query(query).topK(topK).similarityThreshold(0.5).build()
         );
     }
 

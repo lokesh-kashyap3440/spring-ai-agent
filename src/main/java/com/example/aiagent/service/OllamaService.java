@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 @Service
-@ConditionalOnProperty(name = "app.ai.provider", havingValue = "ollama", matchIfMissing = true)
+@ConditionalOnProperty(name = "app.ai.provider", havingValue = "ollama")
 public class OllamaService implements AiService {
 
     private static final Logger log = LoggerFactory.getLogger(OllamaService.class);

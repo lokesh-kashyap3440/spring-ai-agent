@@ -9,7 +9,7 @@ class AgentConfigTest {
     @Test
     void testDefaultValues() {
         AgentConfig config = new AgentConfig();
-        assertEquals(10, config.getMaxIterations());
+        assertEquals(6, config.getMaxIterations());
         assertEquals(20, config.getMemorySize());
     }
 

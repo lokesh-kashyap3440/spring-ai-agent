@@ -2,6 +2,7 @@ package com.example.aiagent.agent;
 
 import com.example.aiagent.config.AgentConfig;
 import com.example.aiagent.memory.AgentMemoryService;
+import com.example.aiagent.service.DocumentIngestionService;
 import com.example.aiagent.service.KafkaEventPublisher;
 import com.example.aiagent.service.AiService;
 import com.example.aiagent.tools.Tool;
@@ -34,6 +35,9 @@ class ReActAgentTest {
     @Mock
     private KafkaEventPublisher kafkaPublisher;
 
+    @Mock
+    private DocumentIngestionService ingestionService;
+
     private AgentConfig agentConfig;
     private ReActAgent agent;
 
@@ -45,7 +49,8 @@ class ReActAgentTest {
         lenient().doNothing().when(memoryService).saveMessage(anyString(), anyString(), anyString());
         lenient().doNothing().when(kafkaPublisher).publishAgentEvent(anyString(), anyString(), anyString());
         lenient().when(toolRegistry.getToolDescriptions(any())).thenReturn("");
-        agent = new ReActAgent(aiService, memoryService, toolRegistry, agentConfig, kafkaPublisher);
+        lenient().when(ingestionService.search(anyString(), anyInt())).thenReturn(List.of());
+        agent = new ReActAgent(aiService, memoryService, toolRegistry, agentConfig, kafkaPublisher, ingestionService);
     }
 
     @Test

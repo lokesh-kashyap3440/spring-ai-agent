@@ -1,9 +1,13 @@
 server:
   port: ${SERVER_PORT:8082}
 
+
 spring:
   application:
     name: ai-agent
+  threads:
+    virtual:
+      enabled: true
 
   profiles:
     active: ${ACTIVE_PROFILES:default}
@@ -84,7 +88,7 @@ logging:
 
 app:
   ai:
-    provider: ${AI_PROVIDER:ollama}
+    provider: ${AI_PROVIDER:nvidia}
 
   ollama:
     base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
@@ -95,13 +99,13 @@ app:
 
   nvidia:
     api-key: ${NVIDIA_API_KEY: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}
-    model: ${NVIDIA_MODEL:stepfunai/step-3.5-flash}
+    model: ${NVIDIA_MODEL:stepfun-ai/step-3.5-flash}
     base-url: ${NVIDIA_BASE_URL:https://integrate.api.nvidia.com/v1}
     timeout: ${NVIDIA_TIMEOUT:60}
-    max-tokens: ${NVIDIA_MAX_TOKENS:2048}
+    max-tokens: ${NVIDIA_MAX_TOKENS:16000}
     temperature: ${NVIDIA_TEMPERATURE:0.7}
   agent:
-    max-iterations: ${AGENT_MAX_ITERATIONS:10}
+    max-iterations: ${AGENT_MAX_ITERATIONS:6}
     memory-size: ${AGENT_MEMORY_SIZE:20}
     verbose: ${AGENT_VERBOSE:false}
   kafka:

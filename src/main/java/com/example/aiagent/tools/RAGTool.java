@@ -41,7 +41,7 @@ public class RAGTool implements Tool {
 
             log.info("RAG search query: {}", query);
 
-            List<Document> results = ingestionService.search(query, 10);
+            List<Document> results = ingestionService.search(query, 5);
 
             if (results.isEmpty()) {
                 return "NO_RESULTS: No relevant information found in any uploaded document for the query: " + query + ". The uploaded documents do not contain this information.";

@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "app.agent")
 public class AgentConfig {
 
-    private int maxIterations = 10;
+    private int maxIterations = 6;
     private int memorySize = 20;
 
     public int getMaxIterations() {
