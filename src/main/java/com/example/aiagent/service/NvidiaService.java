@@ -32,12 +32,17 @@ public class NvidiaService implements AiService {
 
     @Override
     public String chat(String systemPrompt, String userMessage) {
+        String apiKey = config.getApiKey();
+        if (apiKey == null || apiKey.isBlank()) {
+            log.error("NVIDIA API key is not configured");
+            return "Error: NVIDIA API key is not configured. Set NVIDIA_API_KEY environment variable.";
+        }
         try {
             String requestBody = buildChatRequest(systemPrompt, userMessage);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(config.getApiKey());
+            headers.setBearerAuth(apiKey);
 
             HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
 
@@ -55,9 +60,14 @@ public class NvidiaService implements AiService {
 
     @Override
     public boolean isAvailable() {
+        String apiKey = config.getApiKey();
+        if (apiKey == null || apiKey.isBlank()) {
+            log.warn("NVIDIA API key is not configured");
+            return false;
+        }
         try {
             HttpHeaders headers = new HttpHeaders();
-            headers.setBearerAuth(config.getApiKey());
+            headers.setBearerAuth(apiKey);
             HttpEntity<String> entity = new HttpEntity<>(headers);
             restTemplate.getForObject(config.getBaseUrl() + "/models", String.class, entity);
             return true;

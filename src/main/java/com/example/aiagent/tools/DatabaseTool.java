@@ -1,21 +1,17 @@
 package com.example.aiagent.tools;
 
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class DatabaseTool implements Tool {
 
-    private final StringRedisTemplate redisTemplate;
     private final Map<String, String> knowledgeBase;
 
-    public DatabaseTool(StringRedisTemplate redisTemplate) {
-        this.redisTemplate = redisTemplate;
-        this.knowledgeBase = new HashMap<>();
+    public DatabaseTool() {
+        this.knowledgeBase = new ConcurrentHashMap<>();
         initializeKnowledgeBase();
     }
 
@@ -42,21 +38,13 @@ public class DatabaseTool implements Tool {
         try {
             String query = input.trim().toLowerCase();
 
-            String cacheKey = "db:" + query;
-            String cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null) {
-                return "From cache: " + cached;
-            }
-
             for (Map.Entry<String, String> entry : knowledgeBase.entrySet()) {
                 if (query.contains(entry.getKey())) {
-                    redisTemplate.opsForValue().set(cacheKey, entry.getValue(), Duration.ofMinutes(5));
                     return "Found: " + entry.getValue();
                 }
             }
 
-            String result = "No specific information found for: " + query + ". Available topics: " + String.join(", ", knowledgeBase.keySet());
-            return result;
+            return "No specific information found for: " + query + ". Available topics: " + String.join(", ", knowledgeBase.keySet());
         } catch (Exception e) {
             return "Database error: " + e.getMessage();
         }

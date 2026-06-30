@@ -1,9 +1,6 @@
 package com.example.aiagent.service;
 
 import com.example.aiagent.model.DocumentInfo;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
@@ -11,13 +8,14 @@ import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,17 +23,13 @@ import java.util.UUID;
 public class DocumentIngestionService {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentIngestionService.class);
-    private static final String DOC_INDEX_KEY = "rag:documents";
     private static final int DEFAULT_TOP_K = 3;
 
     private final VectorStore vectorStore;
     private final TokenTextSplitter textSplitter;
-    private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
+    private final JdbcTemplate jdbc;
 
-    public DocumentIngestionService(VectorStore vectorStore,
-                                    StringRedisTemplate redisTemplate,
-                                    ObjectMapper objectMapper) {
+    public DocumentIngestionService(VectorStore vectorStore, JdbcTemplate jdbc) {
         this.vectorStore = vectorStore;
         this.textSplitter = TokenTextSplitter.builder()
                 .withChunkSize(500)
@@ -44,8 +38,7 @@ public class DocumentIngestionService {
                 .withMaxNumChunks(10000)
                 .withKeepSeparator(true)
                 .build();
-        this.redisTemplate = redisTemplate;
-        this.objectMapper = objectMapper;
+        this.jdbc = jdbc;
     }
 
     public DocumentInfo ingest(MultipartFile file) throws IOException {
@@ -64,19 +57,21 @@ public class DocumentIngestionService {
         List<Document> chunks = textSplitter.apply(documents);
         log.info("Split document '{}' into {} chunks", filename, chunks.size());
 
+        Timestamp now = Timestamp.from(Instant.now());
         chunks.forEach(chunk -> {
             chunk.getMetadata().put("docId", docId);
             chunk.getMetadata().put("filename", filename);
             chunk.getMetadata().put("contentType", file.getContentType());
-            chunk.getMetadata().put("uploadTime", Instant.now().toString());
+            chunk.getMetadata().put("uploadTime", now.toString());
         });
 
         vectorStore.add(chunks);
 
+        jdbc.update("INSERT INTO document_metadata (doc_id, filename, content_type, size, chunks, uploaded_at) VALUES (?, ?, ?, ?, ?, ?)",
+                docId, filename, file.getContentType(), file.getSize(), chunks.size(), now);
+
         DocumentInfo info = new DocumentInfo(docId, filename, file.getContentType(),
                 file.getSize(), chunks.size());
-        saveDocumentInfo(info);
-
         log.info("Document '{}' ingested successfully: {} chunks stored", filename, chunks.size());
         return info;
     }
@@ -92,43 +87,31 @@ public class DocumentIngestionService {
     }
 
     public List<DocumentInfo> listDocuments() {
-        try {
-            String json = redisTemplate.opsForValue().get(DOC_INDEX_KEY);
-            if (json == null || json.isEmpty()) {
-                return new ArrayList<>();
-            }
-            return objectMapper.readValue(json, new TypeReference<List<DocumentInfo>>() {
-            });
-        } catch (JsonProcessingException e) {
-            log.error("Failed to deserialize document index", e);
-            return new ArrayList<>();
-        }
+        return jdbc.query(
+                "SELECT doc_id, filename, content_type, size, chunks, uploaded_at FROM document_metadata ORDER BY uploaded_at DESC",
+                this::mapDocumentInfo
+        );
     }
 
     public boolean deleteDocument(String docId) {
-        List<DocumentInfo> docs = listDocuments();
-        boolean removed = docs.removeIf(doc -> doc.getId().equals(docId));
-
-        if (removed) {
-            saveDocumentList(docs);
+        int updated = jdbc.update("DELETE FROM document_metadata WHERE doc_id = ?", docId);
+        if (updated > 0) {
             log.info("Document {} removed from index", docId);
         }
-
-        return removed;
+        return updated > 0;
     }
 
-    private void saveDocumentInfo(DocumentInfo info) {
-        List<DocumentInfo> docs = listDocuments();
-        docs.add(info);
-        saveDocumentList(docs);
-    }
-
-    private void saveDocumentList(List<DocumentInfo> docs) {
-        try {
-            String json = objectMapper.writeValueAsString(docs);
-            redisTemplate.opsForValue().set(DOC_INDEX_KEY, json);
-        } catch (JsonProcessingException e) {
-            log.error("Failed to serialize document index", e);
+    private DocumentInfo mapDocumentInfo(ResultSet rs, int row) throws java.sql.SQLException {
+        DocumentInfo info = new DocumentInfo();
+        info.setId(rs.getString("doc_id"));
+        info.setFilename(rs.getString("filename"));
+        info.setContentType(rs.getString("content_type"));
+        info.setSize(rs.getLong("size"));
+        info.setChunks(rs.getInt("chunks"));
+        Timestamp ts = rs.getTimestamp("uploaded_at");
+        if (ts != null) {
+            info.setUploadedAt(ts.toInstant());
         }
+        return info;
     }
 }

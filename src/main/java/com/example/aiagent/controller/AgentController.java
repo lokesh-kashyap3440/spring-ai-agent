@@ -102,4 +102,16 @@ public class AgentController {
                 "version", "2.0.0"
         ));
     }
+
+    @GetMapping("/thread-info")
+    public Map<String, Object> threadInfo() {
+        Thread t = Thread.currentThread();
+        return Map.of(
+                "name", t.getName(),
+                "isVirtual", t.isVirtual(),
+                "threadGroup", t.getThreadGroup() != null ? t.getThreadGroup().getName() : null,
+                "priority", t.getPriority(),
+                "state", t.getState().toString()
+        );
+    }
 }

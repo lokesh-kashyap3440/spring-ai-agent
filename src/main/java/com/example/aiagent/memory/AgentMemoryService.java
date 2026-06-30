@@ -1,63 +1,64 @@
 package com.example.aiagent.memory;
 
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @Service
 public class AgentMemoryService {
 
-    private static final String MEMORY_PREFIX = "agent:memory:";
-    private static final int MEMORY_TTL_HOURS = 24;
-    private final StringRedisTemplate redisTemplate;
+    private static final int MAX_MESSAGES = 50;
+    private final JdbcTemplate jdbc;
 
-    public AgentMemoryService(StringRedisTemplate redisTemplate) {
-        this.redisTemplate = redisTemplate;
+    public AgentMemoryService(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
     }
 
     public void saveMessage(String sessionId, String role, String content) {
-        String key = MEMORY_PREFIX + sessionId;
-        String entry = role + ": " + content;
-        redisTemplate.opsForList().rightPush(key, entry);
-        redisTemplate.expire(key, MEMORY_TTL_HOURS, TimeUnit.HOURS);
-
-        Long size = redisTemplate.opsForList().size(key);
-        if (size != null && size > 50) {
-            redisTemplate.opsForList().leftPop(key);
-        }
+        jdbc.update("INSERT INTO conversation_memory (session_id, role, content) VALUES (?, ?, ?)",
+                sessionId, role, content);
+        trimHistory(sessionId);
     }
 
     public List<String> getConversationHistory(String sessionId) {
-        String key = MEMORY_PREFIX + sessionId;
-        Long size = redisTemplate.opsForList().size(key);
-        if (size == null || size == 0) {
-            return List.of();
-        }
-        return redisTemplate.opsForList().range(key, 0, -1);
+        return jdbc.query(
+                "SELECT role || ': ' || content FROM conversation_memory WHERE session_id = ? ORDER BY created_at, id",
+                (rs, row) -> rs.getString(1),
+                sessionId
+        );
     }
 
     public String getFormattedHistory(String sessionId) {
         List<String> history = getConversationHistory(sessionId);
-        return history.stream()
-                .map(s -> "  " + s)
-                .collect(Collectors.joining("\n"));
+        if (history.isEmpty()) return "";
+        return String.join("\n", history.stream().map(s -> "  " + s).toList());
     }
 
     public void clearMemory(String sessionId) {
-        String key = MEMORY_PREFIX + sessionId;
-        redisTemplate.delete(key);
+        jdbc.update("DELETE FROM conversation_memory WHERE session_id = ?", sessionId);
     }
 
     public void saveAgentState(String sessionId, String state) {
-        String key = MEMORY_PREFIX + "state:" + sessionId;
-        redisTemplate.opsForValue().set(key, state, MEMORY_TTL_HOURS, TimeUnit.HOURS);
+        jdbc.update("INSERT INTO conversation_memory (session_id, role, content) VALUES (?, 'state', ?)",
+                sessionId, state);
     }
 
     public String getAgentState(String sessionId) {
-        String key = MEMORY_PREFIX + "state:" + sessionId;
-        return redisTemplate.opsForValue().get(key);
+        var results = jdbc.query(
+                "SELECT content FROM conversation_memory WHERE session_id = ? AND role = 'state' ORDER BY created_at DESC LIMIT 1",
+                (rs, row) -> rs.getString(1),
+                sessionId
+        );
+        return results.isEmpty() ? null : results.getFirst();
+    }
+
+    private void trimHistory(String sessionId) {
+        jdbc.update("""
+                DELETE FROM conversation_memory WHERE session_id = ? AND id <= (
+                    SELECT id FROM conversation_memory WHERE session_id = ?
+                    ORDER BY id DESC OFFSET ? LIMIT 1
+                )
+                """, sessionId, sessionId, MAX_MESSAGES);
     }
 }

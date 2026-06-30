@@ -1,3 +1,0 @@
-FROM chromadb/chroma:0.5.23
-
-RUN pip install --no-cache-dir 'uvicorn[standard]'

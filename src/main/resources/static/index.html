@@ -9,8 +9,34 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex;
-    flex-direction: column;
+    flex-direction: column; justify-content: center; align-items: center;
   }
+  .auth-screen {
+    background: #16213e; padding: 40px; border-radius: 16px; width: 360px;
+    border: 1px solid #0f3460;
+  }
+  .auth-screen h1 { color: #e94560; font-size: 24px; margin-bottom: 24px; text-align: center; }
+  .auth-screen .tab-bar { display: flex; margin-bottom: 20px; border-bottom: 1px solid #0f3460; }
+  .auth-screen .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; color: #8899aa; font-size: 14px; }
+  .auth-screen .tab.active { color: #e94560; border-bottom: 2px solid #e94560; }
+  .auth-screen .field { margin-bottom: 16px; }
+  .auth-screen .field label { display: block; font-size: 13px; color: #8899aa; margin-bottom: 6px; }
+  .auth-screen .field input {
+    width: 100%; background: #1a1a2e; border: 1px solid #0f3460; border-radius: 8px;
+    padding: 12px; color: #e0e0e0; font-size: 14px; outline: none;
+  }
+  .auth-screen .field input:focus { border-color: #e94560; }
+  .auth-screen button {
+    width: 100%; background: #e94560; color: #fff; border: none; border-radius: 8px;
+    padding: 12px; font-size: 14px; cursor: pointer; font-weight: 500; margin-top: 8px;
+  }
+  .auth-screen button:hover { background: #d63851; }
+  .auth-screen .error { color: #e94560; font-size: 13px; text-align: center; margin-top: 8px; }
+  .auth-screen .success { color: #4ecca3; font-size: 13px; text-align: center; margin-top: 8px; }
+  .auth-screen .switch-link { text-align: center; margin-top: 16px; font-size: 13px; color: #8899aa; }
+  .auth-screen .switch-link span { color: #e94560; cursor: pointer; }
+  .chat-screen { display: none; width: 100%; height: 100vh; flex-direction: column; }
+  .chat-screen.open { display: flex; }
   .toolbar {
     background: #16213e; padding: 12px 20px; display: flex;
     align-items: center; gap: 16px; flex-wrap: wrap;
@@ -85,48 +111,216 @@
     background: #e94560; color: #fff; border-radius: 10px; padding: 0 6px;
     font-size: 11px; margin-left: 4px;
   }
+  .username-badge {
+    font-size: 13px; color: #a0a0b8; margin-right: 8px;
+  }
+  .logout-btn {
+    background: transparent; border: 1px solid #0f3460; border-radius: 6px;
+    color: #8899aa; padding: 6px 12px; cursor: pointer; font-size: 12px;
+  }
+  .logout-btn:hover { border-color: #e94560; color: #e94560; }
 </style>
 </head>
 <body>
-<div class="toolbar">
-  <span class="toolbar-title">AI Agent</span>
-  <div id="tool-toggles"></div>
-  <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
-    <span style="font-size:13px;color:#8899aa;cursor:pointer" onclick="toggleDocPanel()">Docs <span id="doc-counter" class="doc-counter">0</span></span>
+
+<div class="auth-screen" id="auth-screen">
+  <h1>AI Agent</h1>
+  <div class="tab-bar">
+    <div class="tab active" id="login-tab" onclick="switchAuthTab('login')">Login</div>
+    <div class="tab" id="register-tab" onclick="switchAuthTab('register')">Register</div>
+  </div>
+
+  <div id="login-form">
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="login-username" placeholder="Enter username" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="Enter password" autocomplete="current-password">
+    </div>
+    <button onclick="login()">Login</button>
+    <div class="error" id="login-error"></div>
+  </div>
+
+  <div id="register-form" style="display:none">
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="register-username" placeholder="Choose a username" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="register-password" placeholder="Choose a password" autocomplete="new-password">
+    </div>
+    <button onclick="register()">Register</button>
+    <div class="error" id="register-error"></div>
+    <div class="success" id="register-success"></div>
+    <div class="switch-link">Already have an account? <span onclick="switchAuthTab('login')">Login</span></div>
   </div>
 </div>
-<div class="doc-panel" id="doc-panel"></div>
-<div class="chat-container" id="chat-container">
-  <div class="message system">Connected. Select tools above and start chatting.</div>
-  <div class="scroll-bottom"></div>
-</div>
-<div class="input-area">
-  <button class="upload-btn" id="upload-btn" onclick="document.getElementById('file-input').click()">+ Upload Doc</button>
-  <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md,.html" style="display:none" onchange="uploadDocument(this)">
-  <input type="text" id="message-input" placeholder="Type your message..." autofocus>
-  <button id="send-btn" onclick="sendMessage()">Send</button>
+
+<div class="chat-screen" id="chat-screen">
+  <div class="toolbar">
+    <span class="toolbar-title">AI Agent</span>
+    <div id="tool-toggles"></div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+      <span class="username-badge" id="username-badge"></span>
+      <span style="font-size:13px;color:#8899aa;cursor:pointer" onclick="toggleDocPanel()">Docs <span id="doc-counter" class="doc-counter">0</span></span>
+      <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+  </div>
+  <div class="doc-panel" id="doc-panel"></div>
+  <div class="chat-container" id="chat-container">
+    <div class="message system">Connected. Select tools above and start chatting.</div>
+    <div class="scroll-bottom"></div>
+  </div>
+  <div class="input-area">
+    <button class="upload-btn" id="upload-btn" onclick="document.getElementById('file-input').click()">+ Upload Doc</button>
+    <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md,.html" style="display:none" onchange="uploadDocument(this)">
+    <input type="text" id="message-input" placeholder="Type your message..." autofocus>
+    <button id="send-btn" onclick="sendMessage()">Send</button>
+  </div>
 </div>
 
 <script>
 const API_BASE = '/api';
 let sessionId = crypto.randomUUID();
 
-async function loadTools() {
-  const res = await fetch(API_BASE + '/agent/tools');
-  const tools = await res.json();
-  const container = document.getElementById('tool-toggles');
-  container.innerHTML = '';
-  const allChecked = {};
-  for (const [name, desc] of Object.entries(tools)) {
-    allChecked[name] = true;
-    const label = document.createElement('label');
-    label.className = 'tool-toggle active';
-    label.title = desc;
-    label.innerHTML = `<input type="checkbox" checked data-tool="${name}">${name}`;
-    label.querySelector('input').addEventListener('change', function() {
-      label.classList.toggle('active', this.checked);
+function getToken() { return localStorage.getItem('jwt_token'); }
+function getUsername() { return localStorage.getItem('username'); }
+
+function authFetch(url, options = {}) {
+  const token = getToken();
+  if (token) {
+    options.headers = { ...options.headers, 'Authorization': 'Bearer ' + token };
+  }
+  return fetch(url, options).then(res => {
+    if (res.status === 401) {
+      localStorage.removeItem('jwt_token');
+      localStorage.removeItem('username');
+      showAuthScreen();
+      throw new Error('Session expired. Please login again.');
+    }
+    return res;
+  });
+}
+
+function showAuthScreen() {
+  document.getElementById('auth-screen').style.display = 'block';
+  document.getElementById('chat-screen').classList.remove('open');
+  document.getElementById('chat-container').innerHTML = '<div class="message system">Connected. Select tools above and start chatting.</div><div class="scroll-bottom"></div>';
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('register-error').textContent = '';
+  document.getElementById('register-success').textContent = '';
+}
+
+function showChatScreen() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('chat-screen').classList.add('open');
+  document.getElementById('username-badge').textContent = getUsername() || '';
+  loadTools();
+  loadDocuments();
+}
+
+function switchAuthTab(tab) {
+  document.getElementById('login-tab').classList.toggle('active', tab === 'login');
+  document.getElementById('register-tab').classList.toggle('active', tab === 'register');
+  document.getElementById('login-form').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('register-error').textContent = '';
+  document.getElementById('register-success').textContent = '';
+}
+
+async function login() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  errorEl.textContent = '';
+
+  if (!username || !password) { errorEl.textContent = 'Please fill in all fields'; return; }
+
+  try {
+    const res = await fetch(API_BASE + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
     });
-    container.appendChild(label);
+    const data = await res.json();
+    if (!res.ok) { errorEl.textContent = data.error || 'Login failed'; return; }
+    localStorage.setItem('jwt_token', data.token);
+    localStorage.setItem('username', data.username);
+    sessionId = crypto.randomUUID();
+    showChatScreen();
+  } catch (err) {
+    errorEl.textContent = 'Connection error: ' + err.message;
+  }
+}
+
+async function register() {
+  const username = document.getElementById('register-username').value.trim();
+  const password = document.getElementById('register-password').value;
+  const errorEl = document.getElementById('register-error');
+  const successEl = document.getElementById('register-success');
+  errorEl.textContent = '';
+  successEl.textContent = '';
+
+  if (!username || !password) { errorEl.textContent = 'Please fill in all fields'; return; }
+
+  try {
+    const res = await fetch(API_BASE + '/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) { errorEl.textContent = data.error || 'Registration failed'; return; }
+    localStorage.setItem('jwt_token', data.token);
+    localStorage.setItem('username', data.username);
+    sessionId = crypto.randomUUID();
+    showChatScreen();
+  } catch (err) {
+    errorEl.textContent = 'Connection error: ' + err.message;
+  }
+}
+
+function logout() {
+  localStorage.removeItem('jwt_token');
+  localStorage.removeItem('username');
+  showAuthScreen();
+}
+
+document.getElementById('login-password').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') login();
+});
+document.getElementById('register-password').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') register();
+});
+
+if (getToken()) {
+  showChatScreen();
+} else {
+  document.getElementById('auth-screen').style.display = 'block';
+}
+
+async function loadTools() {
+  try {
+    const res = await authFetch(API_BASE + '/agent/tools');
+    const tools = await res.json();
+    const container = document.getElementById('tool-toggles');
+    container.innerHTML = '';
+    for (const [name, desc] of Object.entries(tools)) {
+      const label = document.createElement('label');
+      label.className = 'tool-toggle active';
+      label.title = desc;
+      label.innerHTML = `<input type="checkbox" checked data-tool="${name}">${name}`;
+      label.querySelector('input').addEventListener('change', function() {
+        label.classList.toggle('active', this.checked);
+      });
+      container.appendChild(label);
+    }
+  } catch (err) {
+    console.error('Failed to load tools', err);
   }
 }
 
@@ -174,6 +368,8 @@ async function sendMessage() {
   const message = input.value.trim();
   if (!message) return;
 
+  if (!getToken()) { showAuthScreen(); return; }
+
   input.value = '';
   document.getElementById('send-btn').disabled = true;
 
@@ -183,7 +379,7 @@ async function sendMessage() {
   addTypingIndicator();
 
   try {
-    const res = await fetch(API_BASE + '/agent/chat', {
+    const res = await authFetch(API_BASE + '/agent/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -197,6 +393,7 @@ async function sendMessage() {
     addMessage('assistant', data.answer, data.toolsUsed);
   } catch (err) {
     removeTypingIndicator();
+    if (err.message.includes('Session expired')) return;
     addMessage('system', 'Error: ' + err.message);
   } finally {
     document.getElementById('send-btn').disabled = false;
@@ -214,6 +411,7 @@ document.getElementById('message-input').addEventListener('keydown', function(e)
 async function uploadDocument(input) {
   const file = input.files[0];
   if (!file) return;
+  if (!getToken()) { showAuthScreen(); return; }
 
   const btn = document.getElementById('upload-btn');
   btn.disabled = true;
@@ -223,7 +421,7 @@ async function uploadDocument(input) {
   formData.append('file', file);
 
   try {
-    const res = await fetch(API_BASE + '/documents/upload', {
+    const res = await authFetch(API_BASE + '/documents/upload', {
       method: 'POST',
       body: formData
     });
@@ -235,6 +433,7 @@ async function uploadDocument(input) {
       addMessage('system', 'Uploaded: ' + data.document.filename + ' (' + data.document.chunks + ' chunks)');
     }
   } catch (err) {
+    if (err.message.includes('Session expired')) return;
     addMessage('system', 'Upload error: ' + err.message);
   } finally {
     btn.disabled = false;
@@ -245,8 +444,9 @@ async function uploadDocument(input) {
 }
 
 async function loadDocuments() {
+  if (!getToken()) return;
   try {
-    const res = await fetch(API_BASE + '/documents');
+    const res = await authFetch(API_BASE + '/documents');
     const docs = await res.json();
     const counter = document.getElementById('doc-counter');
     counter.textContent = docs.length;
@@ -282,18 +482,16 @@ function toggleDocPanel() {
 async function deleteDocument(docId, filename) {
   if (!confirm('Delete "' + filename + '"?')) return;
   try {
-    const res = await fetch(API_BASE + '/documents/' + docId, { method: 'DELETE' });
+    const res = await authFetch(API_BASE + '/documents/' + docId, { method: 'DELETE' });
     if (res.ok) {
       addMessage('system', 'Deleted: ' + filename);
       loadDocuments();
     }
   } catch (err) {
+    if (err.message.includes('Session expired')) return;
     addMessage('system', 'Delete error: ' + err.message);
   }
 }
-
-loadTools();
-loadDocuments();
 </script>
 </body>
 </html>
