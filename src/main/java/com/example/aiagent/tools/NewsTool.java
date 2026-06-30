@@ -23,17 +23,17 @@ public class NewsTool implements Tool {
         try {
             String topic = input.trim().toLowerCase();
             String url = String.format(
-                "https://newsapi.org/v2/top-headlines?q=%s&pageSize=3&apiKey=demo",
-                topic.replace(" ", "+")
+                    "https://newsapi.org/v2/top-headlines?q=%s&pageSize=3&apiKey=demo",
+                    topic.replace(" ", "+")
             );
             String result = restTemplate.getForObject(url, String.class);
             return result;
         } catch (Exception e) {
             return String.format(
-                "Simulated news for '%s': 1) Major development in %s reported today. " +
-                "2) Breaking: New trends emerge in %s sector. " +
-                "3) Analysis: Current state of %s market.",
-                input.trim(), input.trim(), input.trim(), input.trim()
+                    "Simulated news for '%s': 1) Major development in %s reported today. " +
+                            "2) Breaking: New trends emerge in %s sector. " +
+                            "3) Analysis: Current state of %s market.",
+                    input.trim(), input.trim(), input.trim(), input.trim()
             );
         }
     }

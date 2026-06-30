@@ -56,18 +56,59 @@ public class AgentState {
         return sb.toString();
     }
 
-    public String getSessionId() { return sessionId; }
-    public void setSessionId(String sessionId) { this.sessionId = sessionId; }
-    public String getUserMessage() { return userMessage; }
-    public void setUserMessage(String userMessage) { this.userMessage = userMessage; }
-    public List<String> getThoughtHistory() { return thoughtHistory; }
-    public void setThoughtHistory(List<String> thoughtHistory) { this.thoughtHistory = thoughtHistory; }
-    public List<String> getActionsTaken() { return actionsTaken; }
-    public void setActionsTaken(List<String> actionsTaken) { this.actionsTaken = actionsTaken; }
-    public List<String> getObservations() { return observations; }
-    public void setObservations(List<String> observations) { this.observations = observations; }
-    public int getCurrentIteration() { return currentIteration; }
-    public void setCurrentIteration(int currentIteration) { this.currentIteration = currentIteration; }
-    public boolean isCompleted() { return completed; }
-    public void setCompleted(boolean completed) { this.completed = completed; }
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
+    }
+
+    public String getUserMessage() {
+        return userMessage;
+    }
+
+    public void setUserMessage(String userMessage) {
+        this.userMessage = userMessage;
+    }
+
+    public List<String> getThoughtHistory() {
+        return thoughtHistory;
+    }
+
+    public void setThoughtHistory(List<String> thoughtHistory) {
+        this.thoughtHistory = thoughtHistory;
+    }
+
+    public List<String> getActionsTaken() {
+        return actionsTaken;
+    }
+
+    public void setActionsTaken(List<String> actionsTaken) {
+        this.actionsTaken = actionsTaken;
+    }
+
+    public List<String> getObservations() {
+        return observations;
+    }
+
+    public void setObservations(List<String> observations) {
+        this.observations = observations;
+    }
+
+    public int getCurrentIteration() {
+        return currentIteration;
+    }
+
+    public void setCurrentIteration(int currentIteration) {
+        this.currentIteration = currentIteration;
+    }
+
+    public boolean isCompleted() {
+        return completed;
+    }
+
+    public void setCompleted(boolean completed) {
+        this.completed = completed;
+    }
 }

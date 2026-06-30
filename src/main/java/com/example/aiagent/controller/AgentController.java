@@ -5,17 +5,19 @@ import com.example.aiagent.memory.AgentMemoryService;
 import com.example.aiagent.model.ChatRequest;
 import com.example.aiagent.model.ChatResponse;
 import com.example.aiagent.service.KafkaEventPublisher;
-import com.example.aiagent.service.OllamaService;
+import com.example.aiagent.service.AiService;
 import com.example.aiagent.tools.ToolRegistry;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/api")
@@ -25,23 +27,23 @@ public class AgentController {
     private static final Logger log = LoggerFactory.getLogger(AgentController.class);
 
     private final ReActAgent agent;
-    private final OllamaService ollamaService;
+    private final AiService aiService;
     private final AgentMemoryService memoryService;
     private final ToolRegistry toolRegistry;
     private final KafkaEventPublisher kafkaPublisher;
 
-    public AgentController(ReActAgent agent, OllamaService ollamaService,
+    public AgentController(ReActAgent agent, AiService aiService,
                            AgentMemoryService memoryService, ToolRegistry toolRegistry,
                            KafkaEventPublisher kafkaPublisher) {
         this.agent = agent;
-        this.ollamaService = ollamaService;
+        this.aiService = aiService;
         this.memoryService = memoryService;
         this.toolRegistry = toolRegistry;
         this.kafkaPublisher = kafkaPublisher;
     }
 
     @PostMapping("/agent/chat")
-    public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request) {
+    public ResponseEntity<ChatResponse> chat(@Valid @RequestBody ChatRequest request) {
         long startTime = System.currentTimeMillis();
 
         String sessionId = request.getSessionId();
@@ -49,18 +51,21 @@ public class AgentController {
             sessionId = UUID.randomUUID().toString();
         }
 
-        log.info("Chat request for session {}: {}", sessionId, request.getMessage());
+        Set<String> enabledTools = request.getToolsEnabled() != null ?
+                new HashSet<>(request.getToolsEnabled()) : null;
+
+        log.info("Chat request for session {}: {} (tools: {})", sessionId, request.getMessage(),
+                enabledTools != null ? enabledTools : "all");
         kafkaPublisher.publishChatEvent(sessionId, "chat_request", request.getMessage());
 
-        String answer = agent.run(request.getMessage(), sessionId);
+        ReActAgent.AgentResult result = agent.run(request.getMessage(), sessionId, enabledTools);
 
         long processingTime = System.currentTimeMillis() - startTime;
-        List<String> toolsUsed = List.of("weather", "database", "calculator", "news", "rag_search");
 
-        ChatResponse response = new ChatResponse(answer, sessionId, toolsUsed, processingTime);
-        kafkaPublisher.publishChatEvent(sessionId, "chat_response", answer);
+        ChatResponse response = new ChatResponse(result.answer(), sessionId, result.toolsUsed(), processingTime);
+        kafkaPublisher.publishChatEvent(sessionId, "chat_response", result.answer());
 
-        log.info("Response sent for session {} in {}ms", sessionId, processingTime);
+        log.info("Response sent for session {} in {}ms (tools used: {})", sessionId, processingTime, result.toolsUsed());
         return ResponseEntity.ok(response);
     }
 
@@ -79,20 +84,22 @@ public class AgentController {
     @GetMapping("/agent/tools")
     public ResponseEntity<Map<String, String>> getTools() {
         return ResponseEntity.ok(toolRegistry.getAllTools().entrySet().stream()
-            .collect(java.util.stream.Collectors.toMap(
-                Map.Entry::getKey,
-                e -> e.getValue().getDescription()
-            )));
+                .collect(java.util.stream.Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue().getDescription()
+                )));
     }
 
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> health() {
-        boolean ollamaAvailable = ollamaService.isAvailable();
+        boolean aiAvailable = aiService.isAvailable();
+        String provider = aiService.getClass().getSimpleName().replace("Service", "").toLowerCase();
         return ResponseEntity.ok(Map.of(
-            "status", ollamaAvailable ? "healthy" : "degraded",
-            "ollama", ollamaAvailable ? "connected" : "disconnected",
-            "tools", toolRegistry.getToolNames(),
-            "version", "1.0.0"
+                "status", aiAvailable ? "healthy" : "degraded",
+                "provider", provider,
+                "available", aiAvailable,
+                "tools", toolRegistry.getToolNames(),
+                "version", "2.0.0"
         ));
     }
 }

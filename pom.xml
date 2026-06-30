@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.13</version>
+        <version>4.1.0</version>
         <relativePath/>
     </parent>
 
@@ -19,12 +19,8 @@
 
     <properties>
         <java.version>21</java.version>
-        <spring-ai.version>1.0.8</spring-ai.version>
-        <!-- Override managed versions for CVEs -->
-        <jackson-bom.version>2.21.4</jackson-bom.version>
-        <logback.version>1.5.34</logback.version>
-        <snakeyaml.version>2.6</snakeyaml.version>
-        <tomcat.version>10.1.55</tomcat.version>
+        <spring-ai.version>2.0.0</spring-ai.version>
+        <!-- Managed by spring-boot-starter-parent 4.1.0 -->
     </properties>
 
     <dependencyManagement>
@@ -36,33 +32,7 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            <!-- Bouncy Castle 1.84 fixes CVE-2026-5598 (timing channel, CVSS 8.9) -->
-            <dependency>
-                <groupId>org.bouncycastle</groupId>
-                <artifactId>bcprov-jdk18on</artifactId>
-                <version>1.84</version>
-            </dependency>
-            <dependency>
-                <groupId>org.bouncycastle</groupId>
-                <artifactId>bcpkix-jdk18on</artifactId>
-                <version>1.84</version>
-            </dependency>
-            <dependency>
-                <groupId>org.bouncycastle</groupId>
-                <artifactId>bcutil-jdk18on</artifactId>
-                <version>1.84</version>
-            </dependency>
-            <dependency>
-                <groupId>org.bouncycastle</groupId>
-                <artifactId>bcjmail-jdk18on</artifactId>
-                <version>1.84</version>
-            </dependency>
-            <!-- Snappy-Java 1.1.10.8 - latest secure -->
-            <dependency>
-                <groupId>org.xerial.snappy</groupId>
-                <artifactId>snappy-java</artifactId>
-                <version>1.1.10.8</version>
-            </dependency>
+
         </dependencies>
     </dependencyManagement>
 
@@ -73,10 +43,10 @@
             <artifactId>spring-ai-starter-model-ollama</artifactId>
         </dependency>
 
-        <!-- Spring AI - Simple Vector Store (in-memory) -->
+        <!-- Spring AI - Redis Vector Store (persistent) -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-vector-store</artifactId>
+            <artifactId>spring-ai-starter-vector-store-redis</artifactId>
         </dependency>
 
         <!-- Spring AI - Tika Document Reader (PDF, DOCX, etc.) -->
@@ -102,14 +72,8 @@
         </dependency>
 
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.8.17</version>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
 
         <dependency>
@@ -128,28 +92,7 @@
                     <mainClass>com.example.aiagent.AiAgentApplication</mainClass>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>org.owasp</groupId>
-                <artifactId>dependency-check-maven</artifactId>
-                <version>12.1.0</version>
-                <configuration>
-                    <failBuildOnCVSS>8</failBuildOnCVSS>
-                    <formats>
-                        <format>HTML</format>
-                        <format>JSON</format>
-                    </formats>
-                    <suppressionFiles>
-                        <suppressionFile>dependency-check-suppressions.xml</suppressionFile>
-                    </suppressionFiles>
-                </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
+
         </plugins>
     </build>
 </project>

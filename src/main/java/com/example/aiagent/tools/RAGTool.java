@@ -1,5 +1,6 @@
 package com.example.aiagent.tools;
 
+import com.example.aiagent.model.DocumentInfo;
 import com.example.aiagent.service.DocumentIngestionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,14 +41,19 @@ public class RAGTool implements Tool {
 
             log.info("RAG search query: {}", query);
 
-            List<Document> results = ingestionService.search(query, 3);
+            List<Document> results = ingestionService.search(query, 10);
 
             if (results.isEmpty()) {
-                return "No relevant information found in uploaded documents for: " + query;
+                return "NO_RESULTS: No relevant information found in any uploaded document for the query: " + query + ". The uploaded documents do not contain this information.";
             }
 
+            List<DocumentInfo> allDocs = ingestionService.listDocuments();
+            String availableDocs = allDocs.isEmpty() ? "No documents available." :
+                    "Available documents: " + allDocs.stream().map(DocumentInfo::getFilename).collect(Collectors.joining(", "));
+
             StringBuilder response = new StringBuilder();
-            response.append("Found ").append(results.size()).append(" relevant sections:\n\n");
+            response.append(availableDocs).append("\n\n");
+            response.append("Search results for \"").append(query).append("\":\n\n");
 
             for (int i = 0; i < results.size(); i++) {
                 Document doc = results.get(i);

@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
@@ -28,11 +29,32 @@ public class ToolRegistry {
 
     public String getToolDescriptions() {
         return tools.values().stream()
-            .map(tool -> String.format("- %s: %s", tool.getName(), tool.getDescription()))
-            .collect(Collectors.joining("\n"));
+                .map(tool -> String.format("- %s: %s", tool.getName(), tool.getDescription()))
+                .collect(Collectors.joining("\n"));
+    }
+
+    public String getToolDescriptions(Set<String> enabledTools) {
+        if (enabledTools == null) {
+            return getToolDescriptions();
+        }
+        return tools.entrySet().stream()
+                .filter(e -> enabledTools.contains(e.getKey()))
+                .map(e -> String.format("- %s: %s", e.getKey(), e.getValue().getDescription()))
+                .collect(Collectors.joining("\n"));
+    }
+
+    public boolean isToolEnabled(String name, Set<String> enabledTools) {
+        return enabledTools == null || enabledTools.contains(name.toLowerCase());
     }
 
     public String getToolNames() {
         return String.join(", ", tools.keySet());
+    }
+
+    public String getToolNames(Set<String> enabledTools) {
+        if (enabledTools == null) {
+            return getToolNames();
+        }
+        return String.join(", ", enabledTools);
     }
 }

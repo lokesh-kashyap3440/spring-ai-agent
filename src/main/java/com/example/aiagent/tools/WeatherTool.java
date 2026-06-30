@@ -23,8 +23,8 @@ public class WeatherTool implements Tool {
         try {
             String city = input.trim();
             String url = String.format(
-                "https://wttr.in/%s?format=%%t+%%C+%%h+%%w",
-                city.replace(" ", "+")
+                    "https://wttr.in/%s?format=%%t+%%C+%%h+%%w",
+                    city.replace(" ", "+")
             );
             String result = restTemplate.getForObject(url, String.class);
             return String.format("Weather for %s: %s", city, result);

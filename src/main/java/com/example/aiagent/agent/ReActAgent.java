@@ -4,7 +4,7 @@ import com.example.aiagent.config.AgentConfig;
 import com.example.aiagent.memory.AgentMemoryService;
 import com.example.aiagent.model.AgentState;
 import com.example.aiagent.service.KafkaEventPublisher;
-import com.example.aiagent.service.OllamaService;
+import com.example.aiagent.service.AiService;
 import com.example.aiagent.tools.Tool;
 import com.example.aiagent.tools.ToolRegistry;
 import org.slf4j.Logger;
@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -21,36 +22,39 @@ public class ReActAgent {
 
     private static final Logger log = LoggerFactory.getLogger(ReActAgent.class);
     private static final Pattern ACTION_PATTERN = Pattern.compile(
-        "Action:\\s*(\\w+)\\s*\\n?\\s*Input:\\s*(.+?)(?=\\n|$)", Pattern.CASE_INSENSITIVE
+            "Action:\\s*(\\w+)\\s*\\n?\\s*Input:\\s*(.+?)(?=\\n|$)", Pattern.CASE_INSENSITIVE
     );
     private static final Pattern FINISH_PATTERN = Pattern.compile(
-        "Final Answer:\\s*(.+)", Pattern.DOTALL | Pattern.CASE_INSENSITIVE
+            "Final Answer:\\s*(.+)", Pattern.DOTALL | Pattern.CASE_INSENSITIVE
     );
 
-    private final OllamaService ollamaService;
+    private final AiService aiService;
     private final AgentMemoryService memoryService;
     private final ToolRegistry toolRegistry;
     private final AgentConfig agentConfig;
     private final KafkaEventPublisher kafkaPublisher;
 
-    public ReActAgent(OllamaService ollamaService, AgentMemoryService memoryService,
+    public ReActAgent(AiService aiService, AgentMemoryService memoryService,
                       ToolRegistry toolRegistry, AgentConfig agentConfig,
                       KafkaEventPublisher kafkaPublisher) {
-        this.ollamaService = ollamaService;
+        this.aiService = aiService;
         this.memoryService = memoryService;
         this.toolRegistry = toolRegistry;
         this.agentConfig = agentConfig;
         this.kafkaPublisher = kafkaPublisher;
     }
 
-    public String run(String userMessage, String sessionId) {
+    public record AgentResult(String answer, List<String> toolsUsed) {}
+
+    public AgentResult run(String userMessage, String sessionId, Set<String> enabledTools) {
         AgentState state = new AgentState(sessionId);
         state.setUserMessage(userMessage);
+        List<String> toolsUsed = new ArrayList<>();
 
         memoryService.saveMessage(sessionId, "user", userMessage);
         kafkaPublisher.publishAgentEvent(sessionId, "user_message", userMessage);
 
-        String systemPrompt = buildSystemPrompt();
+        String systemPrompt = buildSystemPrompt(enabledTools);
         String context = buildContext(sessionId, userMessage);
 
         for (int i = 0; i < agentConfig.getMaxIterations(); i++) {
@@ -58,7 +62,7 @@ public class ReActAgent {
             log.info("Agent iteration {} for session {}", state.getCurrentIteration(), sessionId);
 
             String prompt = buildIterationPrompt(state, context);
-            String llmResponse = ollamaService.chat(systemPrompt, prompt);
+            String llmResponse = aiService.chat(systemPrompt, prompt);
 
             log.debug("LLM response: {}", llmResponse);
 
@@ -71,7 +75,7 @@ public class ReActAgent {
                 memoryService.saveMessage(sessionId, "assistant", finalAnswer);
                 kafkaPublisher.publishAgentEvent(sessionId, "final_answer", finalAnswer);
 
-                return finalAnswer;
+                return new AgentResult(finalAnswer, toolsUsed);
             }
 
             Matcher actionMatcher = ACTION_PATTERN.matcher(llmResponse);
@@ -84,55 +88,62 @@ public class ReActAgent {
 
                 Tool tool = toolRegistry.getTool(toolName);
                 String observation;
-                if (tool != null) {
+                if (tool != null && toolRegistry.isToolEnabled(toolName, enabledTools)) {
                     observation = tool.execute(toolInput);
+                    toolsUsed.add(toolName);
+                } else if (tool == null) {
+                    observation = "Unknown tool: " + toolName + ". Available tools: " + toolRegistry.getToolNames(enabledTools);
                 } else {
-                    observation = "Unknown tool: " + toolName + ". Available tools: " + toolRegistry.getToolNames();
+                    observation = "Tool '" + toolName + "' is not enabled. Available tools: " + toolRegistry.getToolNames(enabledTools);
                 }
                 state.addObservation(observation);
 
                 kafkaPublisher.publishAgentEvent(sessionId, "tool_call",
-                    toolName + " -> " + observation.substring(0, Math.min(100, observation.length())));
+                        toolName + " -> " + observation.substring(0, Math.min(100, observation.length())));
             } else {
                 state.addThought(llmResponse);
                 if (i == agentConfig.getMaxIterations() - 1) {
                     String fallbackAnswer = extractAnswer(llmResponse);
                     memoryService.saveMessage(sessionId, "assistant", fallbackAnswer);
-                    return fallbackAnswer;
+                    return new AgentResult(fallbackAnswer, toolsUsed);
                 }
             }
         }
 
         String lastThought = state.getThoughtHistory().isEmpty() ?
-            "I could not determine a final answer." :
-            state.getThoughtHistory().get(state.getThoughtHistory().size() - 1);
+                "I could not determine a final answer." :
+                state.getThoughtHistory().get(state.getThoughtHistory().size() - 1);
         memoryService.saveMessage(sessionId, "assistant", lastThought);
-        return lastThought;
+        return new AgentResult(lastThought, toolsUsed);
     }
 
-    private String buildSystemPrompt() {
+    private String buildSystemPrompt(Set<String> enabledTools) {
         return String.format("""
-            You are a helpful AI agent that uses the ReAct (Reasoning + Acting) pattern.
-
-            You have access to the following tools:
-            %s
-
-            To use a tool, respond in this exact format:
-            Thought: [your reasoning about what to do]
-            Action: [tool_name]
-            Input: [the input for the tool]
-
-            When you have enough information to answer, use:
-            Thought: [your final reasoning]
-            Final Answer: [your answer to the user]
-
-            Rules:
-            - Always start with a Thought
-            - Use one tool at a time
-            - Wait for the observation before continuing
-            - Give a Final Answer when you have enough information
-            - Be concise and helpful
-            """, toolRegistry.getToolDescriptions());
+                You are a helpful AI agent that uses the ReAct (Reasoning + Acting) pattern.
+                
+                You have access to the following tools:
+                %s
+                
+                To use a tool, respond in this exact format:
+                Thought: [your reasoning about what to do]
+                Action: [tool_name]
+                Input: [the input for the tool]
+                
+                When you have enough information to answer, use:
+                Thought: [your final reasoning]
+                Final Answer: [your answer to the user]
+                
+                Rules:
+                - Always start with a Thought
+                - Use one tool at a time
+                - Wait for the observation before continuing
+                - Give a Final Answer when you have enough information
+                - Be concise and helpful
+                - You can call the same tool multiple times with different inputs. This is encouraged.
+                - If a search returns no results or the results don't answer the question, call the tool again with different search terms (synonyms, rephrased).
+                - Check each search result's filename and content carefully. If the first search misses relevant info, try broader or different queries.
+                - Only say no data exists after at least 3 different search attempts with varied terms.
+                """, toolRegistry.getToolDescriptions(enabledTools));
     }
 
     private String buildContext(String sessionId, String userMessage) {

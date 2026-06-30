@@ -1,62 +1,64 @@
-{"properties": [
-  {
-    "name": "app.ollama.base-url",
-    "type": "java.lang.String",
-    "description": "A description for 'app.ollama.base-url'"
-  },
-  {
-    "name": "app.ollama.model",
-    "type": "java.lang.String",
-    "description": "A description for 'app.ollama.model'"
-  },
-  {
-    "name": "app.ollama.timeout",
-    "type": "java.lang.String",
-    "description": "A description for 'app.ollama.timeout'"
-  },
-  {
-    "name": "app.mcp.server.name",
-    "type": "java.lang.String",
-    "description": "A description for 'app.mcp.server.name'"
-  },
-  {
-    "name": "app.kafka.topics.events",
-    "type": "java.lang.String",
-    "description": "A description for 'app.kafka.topics.events'"
-  },
-  {
-    "name": "app.agent.max-iterations",
-    "type": "java.lang.String",
-    "description": "A description for 'app.agent.max-iterations'"
-  },
-  {
-    "name": "app.agent.max-iterations",
-    "type": "java.lang.String",
-    "description": "A description for 'app.agent.max-iterations'"
-  },
-  {
-    "name": "app.ollama.max-tokens",
-    "type": "java.lang.String",
-    "description": "A description for 'app.ollama.max-tokens'"
-  },
-  {
-    "name": "app.agent.memory-size",
-    "type": "java.lang.String",
-    "description": "A description for 'app.agent.memory-size'"
-  },
-  {
-    "name": "app.kafka.topics.chat",
-    "type": "java.lang.String",
-    "description": "A description for 'app.kafka.topics.chat'"
-  },
-  {
-    "name": "app.mcp.server.version",
-    "type": "java.lang.String",
-    "description": "A description for 'app.mcp.server.version'"
-  },
-  {
-    "name": "spring.ai.vectorstore.simple.initialize-schema",
-    "type": "java.lang.String",
-    "description": "A description for 'spring.ai.vectorstore.simple.initialize-schema'"
-  }
-]}
+{
+  "properties": [
+    {
+      "name": "app.ollama.base-url",
+      "type": "java.lang.String",
+      "description": "A description for 'app.ollama.base-url'"
+    },
+    {
+      "name": "app.ollama.model",
+      "type": "java.lang.String",
+      "description": "A description for 'app.ollama.model'"
+    },
+    {
+      "name": "app.ollama.timeout",
+      "type": "java.lang.String",
+      "description": "A description for 'app.ollama.timeout'"
+    },
+    {
+      "name": "app.mcp.server.name",
+      "type": "java.lang.String",
+      "description": "A description for 'app.mcp.server.name'"
+    },
+    {
+      "name": "app.kafka.topics.events",
+      "type": "java.lang.String",
+      "description": "A description for 'app.kafka.topics.events'"
+    },
+    {
+      "name": "app.agent.max-iterations",
+      "type": "java.lang.String",
+      "description": "A description for 'app.agent.max-iterations'"
+    },
+    {
+      "name": "app.agent.max-iterations",
+      "type": "java.lang.String",
+      "description": "A description for 'app.agent.max-iterations'"
+    },
+    {
+      "name": "app.ollama.max-tokens",
+      "type": "java.lang.String",
+      "description": "A description for 'app.ollama.max-tokens'"
+    },
+    {
+      "name": "app.agent.memory-size",
+      "type": "java.lang.String",
+      "description": "A description for 'app.agent.memory-size'"
+    },
+    {
+      "name": "app.kafka.topics.chat",
+      "type": "java.lang.String",
+      "description": "A description for 'app.kafka.topics.chat'"
+    },
+    {
+      "name": "app.mcp.server.version",
+      "type": "java.lang.String",
+      "description": "A description for 'app.mcp.server.version'"
+    },
+    {
+      "name": "spring.ai.vectorstore.simple.initialize-schema",
+      "type": "java.lang.String",
+      "description": "A description for 'spring.ai.vectorstore.simple.initialize-schema'"
+    }
+  ]
+}

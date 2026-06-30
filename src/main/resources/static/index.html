@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Agent Chat</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex;
+    flex-direction: column;
+  }
+  .toolbar {
+    background: #16213e; padding: 12px 20px; display: flex;
+    align-items: center; gap: 16px; flex-wrap: wrap;
+    border-bottom: 1px solid #0f3460;
+  }
+  .toolbar-title { font-size: 18px; font-weight: 600; color: #e94560; white-space: nowrap; }
+  .tool-toggle {
+    display: flex; align-items: center; gap: 6px; cursor: pointer;
+    font-size: 13px; color: #a0a0b8; user-select: none;
+  }
+  .tool-toggle input { accent-color: #e94560; }
+  .tool-toggle.active { color: #e0e0e0; }
+  .chat-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .message {
+    max-width: 80%; padding: 12px 16px; border-radius: 12px;
+    line-height: 1.5; font-size: 14px; white-space: pre-wrap; word-break: break-word;
+  }
+  .message.user { background: #e94560; color: #fff; align-self: flex-end; }
+  .message.assistant { background: #16213e; color: #e0e0e0; align-self: flex-start; }
+  .message.system {
+    background: #0f3460; color: #8899aa; align-self: center; font-size: 12px;
+    padding: 6px 14px; border-radius: 20px;
+  }
+  .tools-used { font-size: 11px; color: #e94560; margin-top: 4px; opacity: 0.7; }
+  .typing-indicator {
+    background: #16213e; color: #8899aa; align-self: flex-start; padding: 12px 16px;
+    border-radius: 12px; font-size: 14px;
+  }
+  .input-area {
+    background: #16213e; padding: 12px 20px; display: flex; gap: 10px;
+    border-top: 1px solid #0f3460; align-items: center;
+  }
+  .upload-btn {
+    background: transparent; border: 1px solid #0f3460; border-radius: 8px;
+    color: #a0a0b8; padding: 10px 14px; cursor: pointer; font-size: 13px;
+    transition: all 0.2s; white-space: nowrap;
+  }
+  .upload-btn:hover { border-color: #e94560; color: #e94560; }
+  .upload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .input-area input {
+    flex: 1; background: #1a1a2e; border: 1px solid #0f3460; border-radius: 8px;
+    padding: 12px 16px; color: #e0e0e0; font-size: 14px; outline: none;
+  }
+  .input-area input:focus { border-color: #e94560; }
+  .input-area button {
+    background: #e94560; color: #fff; border: none; border-radius: 8px;
+    padding: 12px 24px; font-size: 14px; cursor: pointer; font-weight: 500;
+    transition: background 0.2s;
+  }
+  .input-area button:hover { background: #d63851; }
+  .input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .scroll-bottom { float: left; clear: both; }
+  .doc-panel {
+    display: none; background: #16213e; border-bottom: 1px solid #0f3460;
+    padding: 12px 20px; max-height: 200px; overflow-y: auto;
+  }
+  .doc-panel.open { display: block; }
+  .doc-panel .doc-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 0; border-bottom: 1px solid #0f3460; font-size: 13px;
+  }
+  .doc-panel .doc-item:last-child { border-bottom: none; }
+  .doc-panel .doc-name { color: #e0e0e0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .doc-panel .doc-meta { color: #8899aa; font-size: 11px; margin: 0 12px; white-space: nowrap; }
+  .doc-panel .doc-delete {
+    background: transparent; border: 1px solid #e94560; color: #e94560;
+    border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 11px;
+  }
+  .doc-panel .doc-delete:hover { background: #e94560; color: #fff; }
+  .doc-panel .doc-empty { color: #8899aa; font-size: 13px; text-align: center; padding: 12px; }
+  .doc-counter {
+    background: #e94560; color: #fff; border-radius: 10px; padding: 0 6px;
+    font-size: 11px; margin-left: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <span class="toolbar-title">AI Agent</span>
+  <div id="tool-toggles"></div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+    <span style="font-size:13px;color:#8899aa;cursor:pointer" onclick="toggleDocPanel()">Docs <span id="doc-counter" class="doc-counter">0</span></span>
+  </div>
+</div>
+<div class="doc-panel" id="doc-panel"></div>
+<div class="chat-container" id="chat-container">
+  <div class="message system">Connected. Select tools above and start chatting.</div>
+  <div class="scroll-bottom"></div>
+</div>
+<div class="input-area">
+  <button class="upload-btn" id="upload-btn" onclick="document.getElementById('file-input').click()">+ Upload Doc</button>
+  <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md,.html" style="display:none" onchange="uploadDocument(this)">
+  <input type="text" id="message-input" placeholder="Type your message..." autofocus>
+  <button id="send-btn" onclick="sendMessage()">Send</button>
+</div>
+
+<script>
+const API_BASE = '/api';
+let sessionId = crypto.randomUUID();
+
+async function loadTools() {
+  const res = await fetch(API_BASE + '/agent/tools');
+  const tools = await res.json();
+  const container = document.getElementById('tool-toggles');
+  container.innerHTML = '';
+  const allChecked = {};
+  for (const [name, desc] of Object.entries(tools)) {
+    allChecked[name] = true;
+    const label = document.createElement('label');
+    label.className = 'tool-toggle active';
+    label.title = desc;
+    label.innerHTML = `<input type="checkbox" checked data-tool="${name}">${name}`;
+    label.querySelector('input').addEventListener('change', function() {
+      label.classList.toggle('active', this.checked);
+    });
+    container.appendChild(label);
+  }
+}
+
+function getSelectedTools() {
+  const checkboxes = document.querySelectorAll('#tool-toggles input[type="checkbox"]');
+  const selected = [];
+  for (const cb of checkboxes) {
+    if (cb.checked) selected.push(cb.dataset.tool);
+  }
+  return selected;
+}
+
+function addMessage(role, content, toolsUsed) {
+  const container = document.getElementById('chat-container');
+  const div = document.createElement('div');
+  div.className = `message ${role}`;
+  div.textContent = content;
+  if (toolsUsed && toolsUsed.length > 0) {
+    const toolsDiv = document.createElement('div');
+    toolsDiv.className = 'tools-used';
+    toolsDiv.textContent = 'tools: ' + toolsUsed.join(', ');
+    div.appendChild(toolsDiv);
+  }
+  container.insertBefore(div, container.lastElementChild);
+  container.scrollTop = container.scrollHeight;
+}
+
+function addTypingIndicator() {
+  const container = document.getElementById('chat-container');
+  const div = document.createElement('div');
+  div.className = 'typing-indicator';
+  div.id = 'typing-indicator';
+  div.textContent = 'Thinking...';
+  container.insertBefore(div, container.lastElementChild);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeTypingIndicator() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+async function sendMessage() {
+  const input = document.getElementById('message-input');
+  const message = input.value.trim();
+  if (!message) return;
+
+  input.value = '';
+  document.getElementById('send-btn').disabled = true;
+
+  addMessage('user', message);
+
+  const selectedTools = getSelectedTools();
+  addTypingIndicator();
+
+  try {
+    const res = await fetch(API_BASE + '/agent/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: message,
+        sessionId: sessionId,
+        toolsEnabled: selectedTools.length > 0 ? selectedTools : null
+      })
+    });
+    const data = await res.json();
+    removeTypingIndicator();
+    addMessage('assistant', data.answer, data.toolsUsed);
+  } catch (err) {
+    removeTypingIndicator();
+    addMessage('system', 'Error: ' + err.message);
+  } finally {
+    document.getElementById('send-btn').disabled = false;
+    document.getElementById('message-input').focus();
+  }
+}
+
+document.getElementById('message-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+async function uploadDocument(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const btn = document.getElementById('upload-btn');
+  btn.disabled = true;
+  btn.textContent = 'Uploading...';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch(API_BASE + '/documents/upload', {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      addMessage('system', 'Upload failed: ' + (err.error || res.statusText));
+    } else {
+      const data = await res.json();
+      addMessage('system', 'Uploaded: ' + data.document.filename + ' (' + data.document.chunks + ' chunks)');
+    }
+  } catch (err) {
+    addMessage('system', 'Upload error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '+ Upload Doc';
+    input.value = '';
+    loadDocuments();
+  }
+}
+
+async function loadDocuments() {
+  try {
+    const res = await fetch(API_BASE + '/documents');
+    const docs = await res.json();
+    const counter = document.getElementById('doc-counter');
+    counter.textContent = docs.length;
+    const panel = document.getElementById('doc-panel');
+    if (docs.length === 0) {
+      panel.innerHTML = '<div class="doc-empty">No documents uploaded yet. Use the + button to upload.</div>';
+      return;
+    }
+    panel.innerHTML = docs.map(doc => {
+      const size = doc.size >= 1024 * 1024
+        ? (doc.size / (1024 * 1024)).toFixed(1) + ' MB'
+        : (doc.size / 1024).toFixed(1) + ' KB';
+      const date = new Date(doc.uploadedAt).toLocaleDateString();
+      return '<div class="doc-item">'
+        + '<span class="doc-name" title="' + doc.filename + '">' + doc.filename + '</span>'
+        + '<span class="doc-meta">' + size + ' | ' + doc.chunks + ' chunks | ' + date + '</span>'
+        + '<button class="doc-delete" onclick="deleteDocument(\'' + doc.id + '\',\'' + doc.filename.replace(/'/g, "\\'") + '\')">Delete</button>'
+        + '</div>';
+    }).join('');
+  } catch (err) {
+    console.error('Failed to load documents', err);
+  }
+}
+
+function toggleDocPanel() {
+  const panel = document.getElementById('doc-panel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) {
+    loadDocuments();
+  }
+}
+
+async function deleteDocument(docId, filename) {
+  if (!confirm('Delete "' + filename + '"?')) return;
+  try {
+    const res = await fetch(API_BASE + '/documents/' + docId, { method: 'DELETE' });
+    if (res.ok) {
+      addMessage('system', 'Deleted: ' + filename);
+      loadDocuments();
+    }
+  } catch (err) {
+    addMessage('system', 'Delete error: ' + err.message);
+  }
+}
+
+loadTools();
+loadDocuments();
+</script>
+</body>
+</html>

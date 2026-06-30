@@ -1,27 +1,16 @@
 server:
-  port: 8082
+  port: ${SERVER_PORT:8082}
 
 spring:
   application:
     name: ai-agent
 
-  kafka:
-    bootstrap-servers: localhost:9093
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-    consumer:
-      group-id: ai-agent-group
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        "[spring.json.trusted.packages]": "com.example.aiagent.*"
-  data:
-    redis:
-      host: localhost
-      port: 6380
-      timeout: 5000
+  profiles:
+    active: ${ACTIVE_PROFILES:default}
+
+  http:
+    converters:
+      preferred-json-mapper: jackson2
 
   servlet:
     multipart:
@@ -30,29 +19,96 @@ spring:
 
   ai:
     ollama:
-      base-url: http://localhost:11434
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       embedding:
-        model: nomic-embed-text
-        options:
-          temperature: 0.0
+        model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text}
     vectorstore:
-      simple:
+      redis:
+        client:
+          host: ${REDIS_HOST:localhost}
+          port: ${REDIS_PORT:6380}
+          password: ${REDIS_PASSWORD:}
         initialize-schema: true
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6380}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:2s}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9093}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: ${KAFKA_PRODUCER_ACKS:all}
+      retries: ${KAFKA_PRODUCER_RETRIES:3}
+      properties:
+        "[spring.json.trusted.packages]": "com.example.aiagent.*"
+        "[spring.json.use.type.headers]": false
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:ai-agent-group}
+      auto-offset-reset: ${KAFKA_CONSUMER_AUTO_OFFSET_RESET:earliest}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        "[spring.json.trusted.packages]": "com.example.aiagent.*"
+        "[spring.json.use.type.headers]": false
+      concurrency: ${KAFKA_CONSUMER_CONCURRENCY:3}
+      max-poll-records: ${KAFKA_CONSUMER_MAX_POLL_RECORDS:500}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    com.example.aiagent: ${LOG_LEVEL:INFO}
+    org.springframework.kafka: ${KAFKA_LOG_LEVEL:WARN}
+    org.springframework.ai: ${AI_LOG_LEVEL:WARN}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
 app:
+  ai:
+    provider: ${AI_PROVIDER:ollama}
+
   ollama:
-    base-url: http://localhost:11434
-    model: qwen3.5:4b
-    timeout: 120
-    max-tokens: 2048
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    model: ${OLLAMA_MODEL:qwen3.5:4b}
+    timeout: ${OLLAMA_TIMEOUT:120}
+    max-tokens: ${OLLAMA_MAX_TOKENS:2048}
+    temperature: ${OLLAMA_TEMPERATURE:0.7}
+
+  nvidia:
+    api-key: ${NVIDIA_API_KEY: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}
+    model: ${NVIDIA_MODEL:stepfunai/step-3.5-flash}
+    base-url: ${NVIDIA_BASE_URL:https://integrate.api.nvidia.com/v1}
+    timeout: ${NVIDIA_TIMEOUT:60}
+    max-tokens: ${NVIDIA_MAX_TOKENS:2048}
+    temperature: ${NVIDIA_TEMPERATURE:0.7}
   agent:
-    max-iterations: 10
-    memory-size: 20
+    max-iterations: ${AGENT_MAX_ITERATIONS:10}
+    memory-size: ${AGENT_MEMORY_SIZE:20}
+    verbose: ${AGENT_VERBOSE:false}
   kafka:
     topics:
-      events: ai-agent-events
-      chat: ai-agent-chat
+      events: ${KAFKA_TOPIC_EVENTS:ai-agent-events}
+      chat: ${KAFKA_TOPIC_CHAT:ai-agent-chat}
   mcp:
     server:
-      name: ai-agent-tools
-      version: 1.0.0
+      name: ${MCP_SERVER_NAME:ai-agent-tools}
+      version: ${MCP_SERVER_VERSION:1.0.0}

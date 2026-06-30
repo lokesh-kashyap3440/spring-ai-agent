@@ -1,6 +1,7 @@
 package com.example.aiagent.model;
 
 import jakarta.validation.constraints.NotBlank;
+import java.util.List;
 
 public class ChatRequest {
 
@@ -9,7 +10,10 @@ public class ChatRequest {
 
     private String sessionId;
 
-    public ChatRequest() {}
+    private List<String> toolsEnabled;
+
+    public ChatRequest() {
+    }
 
     public ChatRequest(String message, String sessionId) {
         this.message = message;
@@ -30,5 +34,13 @@ public class ChatRequest {
 
     public void setSessionId(String sessionId) {
         this.sessionId = sessionId;
+    }
+
+    public List<String> getToolsEnabled() {
+        return toolsEnabled;
+    }
+
+    public void setToolsEnabled(List<String> toolsEnabled) {
+        this.toolsEnabled = toolsEnabled;
     }
 }

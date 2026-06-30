@@ -71,8 +71,8 @@ public class McpServerController {
 
         try {
             emitter.send(SseEmitter.event()
-                .name("endpoint")
-                .data("/mcp/message?sessionId=" + sessionId));
+                    .name("endpoint")
+                    .data("/mcp/message?sessionId=" + sessionId));
         } catch (IOException e) {
             log.error("Failed to send endpoint event", e);
             emitters.remove(sessionId);
@@ -104,15 +104,15 @@ public class McpServerController {
                 case "tools/call" -> handleToolsCall(params, response);
                 default -> {
                     response.putObject("error")
-                        .put("code", -32601)
-                        .put("message", "Method not found: " + method);
+                            .put("code", -32601)
+                            .put("message", "Method not found: " + method);
                 }
             }
         } catch (Exception e) {
             log.error("MCP error: {}", e.getMessage());
             response.putObject("error")
-                .put("code", -32603)
-                .put("message", "Internal error: " + e.getMessage());
+                    .put("code", -32603)
+                    .put("message", "Internal error: " + e.getMessage());
         }
 
         return ResponseEntity.ok(response);
@@ -120,7 +120,7 @@ public class McpServerController {
 
     @PostMapping(value = "/message", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Void> handleMessage(@RequestBody ObjectNode request,
-                                               @RequestParam String sessionId) {
+                                              @RequestParam String sessionId) {
         SseEmitter emitter = emitters.get(sessionId);
         if (emitter == null) {
             return ResponseEntity.notFound().build();
@@ -147,21 +147,21 @@ public class McpServerController {
                 case "tools/call" -> handleToolsCall(params, response);
                 default -> {
                     response.putObject("error")
-                        .put("code", -32601)
-                        .put("message", "Method not found: " + method);
+                            .put("code", -32601)
+                            .put("message", "Method not found: " + method);
                 }
             }
         } catch (Exception e) {
             log.error("MCP error: {}", e.getMessage());
             response.putObject("error")
-                .put("code", -32603)
-                .put("message", "Internal error: " + e.getMessage());
+                    .put("code", -32603)
+                    .put("message", "Internal error: " + e.getMessage());
         }
 
         try {
             emitter.send(SseEmitter.event()
-                .name("message")
-                .data(response, MediaType.APPLICATION_JSON));
+                    .name("message")
+                    .data(response, MediaType.APPLICATION_JSON));
         } catch (IOException e) {
             log.error("Failed to send SSE response", e);
         }
@@ -181,7 +181,7 @@ public class McpServerController {
 
         ObjectNode serverInfo = objectMapper.createObjectNode();
         serverInfo.put("name", "ai-agent-tools");
-        serverInfo.put("version", "1.0.0");
+        serverInfo.put("version", "2.0.0");
         result.set("serverInfo", serverInfo);
 
         response.set("result", result);
@@ -192,21 +192,21 @@ public class McpServerController {
         ArrayNode toolsArray = objectMapper.createArrayNode();
 
         addTool(toolsArray, "get_weather", "Get current weather for a city",
-            Map.of("city", Map.of("type", "string", "description", "City name (e.g., London)")));
+                Map.of("city", Map.of("type", "string", "description", "City name (e.g., London)")));
         addTool(toolsArray, "get_news", "Get latest news headlines for a topic",
-            Map.of("topic", Map.of("type", "string", "description", "Topic name (e.g., technology)")));
+                Map.of("topic", Map.of("type", "string", "description", "Topic name (e.g., technology)")));
         addTool(toolsArray, "calculate", "Evaluate mathematical expressions",
-            Map.of("expression", Map.of("type", "string", "description", "Math expression (e.g., 2 + 2)")));
+                Map.of("expression", Map.of("type", "string", "description", "Math expression (e.g., 2 + 2)")));
         addTool(toolsArray, "query_database", "Query the knowledge base for information",
-            Map.of("query", Map.of("type", "string", "description", "Search query")));
+                Map.of("query", Map.of("type", "string", "description", "Search query")));
         addTool(toolsArray, "rag_search", "Search uploaded documents for relevant information",
-            Map.of("query", Map.of("type", "string", "description", "Search query (e.g., 'What is the refund policy?')")));
+                Map.of("query", Map.of("type", "string", "description", "Search query (e.g., 'What is the refund policy?')")));
         addTool(toolsArray, "upload_document", "Upload a document (PDF, DOCX, TXT, etc.) for RAG search. Provide filename and base64-encoded content",
-            Map.of(
-                "filename", Map.of("type", "string", "description", "Filename with extension (e.g., document.pdf)"),
-                "content", Map.of("type", "string", "description", "Base64-encoded file content"),
-                "contentType", Map.of("type", "string", "description", "MIME type (optional, e.g., application/pdf)")
-            ));
+                Map.of(
+                        "filename", Map.of("type", "string", "description", "Filename with extension (e.g., document.pdf)"),
+                        "content", Map.of("type", "string", "description", "Base64-encoded file content"),
+                        "contentType", Map.of("type", "string", "description", "MIME type (optional, e.g., application/pdf)")
+                ));
 
         result.set("tools", toolsArray);
         response.set("result", result);
@@ -305,15 +305,54 @@ public class McpServerController {
             this.content = content;
         }
 
-        @Override public String getName() { return name; }
-        @Override public String getOriginalFilename() { return originalFilename; }
-        @Override public String getContentType() { return contentType; }
-        @Override public boolean isEmpty() { return content.length == 0; }
-        @Override public long getSize() { return content.length; }
-        @Override public byte[] getBytes() { return content; }
-        @Override public InputStream getInputStream() { return new ByteArrayInputStream(content); }
-        @Override public Resource getResource() { return new ByteArrayResource(content); }
-        @Override public void transferTo(File dest) throws IOException { java.nio.file.Files.write(dest.toPath(), content); }
-        @Override public void transferTo(Path dest) throws IOException { java.nio.file.Files.write(dest, content); }
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public String getOriginalFilename() {
+            return originalFilename;
+        }
+
+        @Override
+        public String getContentType() {
+            return contentType;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return content.length == 0;
+        }
+
+        @Override
+        public long getSize() {
+            return content.length;
+        }
+
+        @Override
+        public byte[] getBytes() {
+            return content;
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return new ByteArrayInputStream(content);
+        }
+
+        @Override
+        public Resource getResource() {
+            return new ByteArrayResource(content);
+        }
+
+        @Override
+        public void transferTo(File dest) throws IOException {
+            java.nio.file.Files.write(dest.toPath(), content);
+        }
+
+        @Override
+        public void transferTo(Path dest) throws IOException {
+            java.nio.file.Files.write(dest, content);
+        }
     }
 }

@@ -11,25 +11,25 @@
 3. [application.yml](#3-applicationyml)
 4. [AiAgentApplication.java](#4-aiagentapplicationjava)
 5. [Config Layer](#5-config-layer)
-   - [AppConfig.java](#51-appconfigjava)
-   - [OllamaConfig.java](#52-ollamaconfigjava)
-   - [AgentConfig.java](#53-agentconfigjava)
-   - [SimpleVectorStoreConfig.java](#54-simplevectorstoreconfigjava)
+    - [AppConfig.java](#51-appconfigjava)
+    - [OllamaConfig.java](#52-ollamaconfigjava)
+    - [AgentConfig.java](#53-agentconfigjava)
+    - [SimpleVectorStoreConfig.java](#54-simplevectorstoreconfigjava)
 6. [Model Layer](#6-model-layer)
-   - [ChatRequest.java](#61-chatrequestjava)
-   - [ChatResponse.java](#62-chatresponsejava)
-   - [AgentState.java](#63-agentstatejava)
-   - [DocumentInfo.java](#64-documentinfojava)
+    - [ChatRequest.java](#61-chatrequestjava)
+    - [ChatResponse.java](#62-chatresponsejava)
+    - [AgentState.java](#63-agentstatejava)
+    - [DocumentInfo.java](#64-documentinfojava)
 7. [Controller Layer](#7-controller-layer)
-   - [AgentController.java](#71-agentcontrollerjava)
-   - [DocumentController.java](#72-documentcontrollerjava)
-   - [McpServerController.java](#73-mcpservercontrollerjava)
+    - [AgentController.java](#71-agentcontrollerjava)
+    - [DocumentController.java](#72-documentcontrollerjava)
+    - [McpServerController.java](#73-mcpservercontrollerjava)
 8. [Agent Layer](#8-agent-layer)
-   - [ReActAgent.java](#81-reactagentjava)
+    - [ReActAgent.java](#81-reactagentjava)
 9. [Service Layer](#9-service-layer)
-   - [OllamaService.java](#91-ollamaservicejava)
-   - [DocumentIngestionService.java](#92-documentingestionservicejava)
-   - [KafkaEventPublisher.java](#93-kafkaeventpublisherjava)
+    - [OllamaService.java](#91-ollamaservicejava)
+    - [DocumentIngestionService.java](#92-documentingestionservicejava)
+    - [KafkaEventPublisher.java](#93-kafkaeventpublisherjava)
 10. [Memory Layer](#10-memory-layer)
     - [AgentMemoryService.java](#101-agentmemoryservicejava)
 11. [Tool Layer](#11-tool-layer)
@@ -46,15 +46,19 @@
 
 ## 1. Project Overview
 
-This is a **ReAct-style AI Agent** built with Spring Boot 3.5.13 and Java 21. It uses a locally-running Ollama LLM (`qwen3.5:4b`) for reasoning, Redis for conversation memory, Kafka for event streaming, and an in-memory vector store for RAG (Retrieval-Augmented Generation).
+This is a **ReAct-style AI Agent** built with Spring Boot 3.5.13 and Java 21. It uses a locally-running Ollama LLM (
+`qwen3.5:4b`) for reasoning, Redis for conversation memory, Kafka for event streaming, and an in-memory vector store for
+RAG (Retrieval-Augmented Generation).
 
 **Key capabilities:**
+
 - Chat with an AI agent that reasons and calls tools iteratively
 - Upload documents (PDF, DOCX, TXT, Markdown, HTML) for semantic search
 - Expose all tools via MCP (Model Context Protocol) for integration with AI clients
 - Full REST API for agent interaction and document management
 
 **Package structure:**
+
 ```
 com.example.aiagent/
 ├── AiAgentApplication.java          -- Spring Boot entry point
@@ -225,7 +229,9 @@ Line 42-58:  Custom application properties —
                - version: 1.0.0
 ```
 
-**Design note:** The `spring.ai.ollama` section configures Spring AI's auto-configured `EmbeddingModel` bean (used by SimpleVectorStore). The `app.ollama` section configures the custom `OllamaService` (used by ReActAgent for chat). These are **two separate Ollama integrations** — one via Spring AI's abstraction, one via direct HTTP.
+**Design note:** The `spring.ai.ollama` section configures Spring AI's auto-configured `EmbeddingModel` bean (used by
+SimpleVectorStore). The `app.ollama` section configures the custom `OllamaService` (used by ReActAgent for chat). These
+are **two separate Ollama integrations** — one via Spring AI's abstraction, one via direct HTTP.
 
 ---
 
@@ -284,7 +290,8 @@ Line 17:   Duration.ofSeconds(120) -- 120s read timeout matches the
            OllamaConfig.timeout value.
 ```
 
-**Note:** `WeatherTool` and `NewsTool` create their own `new RestTemplate()` instead of using this bean — they bypass the timeout configuration.
+**Note:** `WeatherTool` and `NewsTool` create their own `new RestTemplate()` instead of using this bean — they bypass
+the timeout configuration.
 
 ### 5.2 OllamaConfig.java
 
@@ -728,7 +735,8 @@ Line 91-100: Transforms results into a response map:
 
 **File:** `src/main/java/com/example/aiagent/mcp/McpServerController.java`
 
-Implements the Model Context Protocol (MCP) server. This is the most complex controller (319 lines), supporting two transport mechanisms: Streamable HTTP and Server-Sent Events (SSE).
+Implements the Model Context Protocol (MCP) server. This is the most complex controller (319 lines), supporting two
+transport mechanisms: Streamable HTTP and Server-Sent Events (SSE).
 
 ```java
 Line 33:   @RestController -- Returns JSON responses.
@@ -1023,7 +1031,8 @@ Line 317:  transferTo(Path) — Writes bytes to a Path using Files.write.
 
 **File:** `src/main/java/com/example/aiagent/agent/ReActAgent.java`
 
-The core agent implementing the ReAct (Reasoning + Acting) pattern. This is the brain of the application — it iteratively reasons about what to do, calls tools, and synthesizes a final answer.
+The core agent implementing the ReAct (Reasoning + Acting) pattern. This is the brain of the application — it
+iteratively reasons about what to do, calls tools, and synthesizes a final answer.
 
 ```java
 Line 19:   @Component -- Registered as a Spring bean. Not a @Service
@@ -1251,7 +1260,8 @@ Line 173:  Fallback — Takes the first 500 characters of the response.
 
 **File:** `src/main/java/com/example/aiagent/service/OllamaService.java`
 
-A custom HTTP client that calls the Ollama REST API directly. This does NOT use Spring AI's `ChatModel` abstraction — it constructs the request body manually and parses the response.
+A custom HTTP client that calls the Ollama REST API directly. This does NOT use Spring AI's `ChatModel` abstraction — it
+constructs the request body manually and parses the response.
 
 ```java
 Line 15:   @Service -- Registered as a Spring service bean.
@@ -1318,7 +1328,9 @@ Line 68-69: Catches any exception (connection refused, timeout, etc.)
            and returns false. Logs at WARN level.
 ```
 
-**Design note:** This service does not use `config.getMaxTokens()` or `config.getTimeout()`. The maxTokens could be added as `options.num_predict` in the Ollama request body, and the timeout is effectively enforced by the RestTemplate's readTimeout.
+**Design note:** This service does not use `config.getMaxTokens()` or `config.getTimeout()`. The maxTokens could be
+added as `options.num_predict` in the Ollama request body, and the timeout is effectively enforced by the RestTemplate's
+readTimeout.
 
 ### 9.2 DocumentIngestionService.java
 
@@ -1803,6 +1815,7 @@ Line 58:   Base case: If no operators found, parses as a double.
 ```
 
 **Known limitations:**
+
 - No operator precedence (evaluates left-to-right)
 - No parentheses support (except `sqrt(...)`)
 - Multi-operand expressions (e.g., `1+2+3`) lose trailing operands
@@ -1945,41 +1958,41 @@ Line 34-68: execute(String input):
 1. Client sends `POST /api/agent/chat` with `{ "message": "What's the weather in London?" }`
 2. `AgentController` generates a session ID, publishes a Kafka event
 3. `ReActAgent.run()` is called:
-   - Loads conversation history from Redis
-   - Builds system prompt (tool descriptions) and context (history + message)
-   - Sends prompt to `OllamaService.chat()` → Ollama LLM
-   - LLM responds: "Thought: I should check the weather\nAction: weather\nInput: London"
-   - `ReActAgent` parses the Action, looks up `WeatherTool` via `ToolRegistry`
-   - `WeatherTool.execute("London")` calls wttr.in API, returns weather data
-   - Observation is recorded in `AgentState`
-   - Next iteration: LLM gets the observation and produces "Final Answer: ..."
-   - Answer is saved to Redis and returned to the client
+    - Loads conversation history from Redis
+    - Builds system prompt (tool descriptions) and context (history + message)
+    - Sends prompt to `OllamaService.chat()` → Ollama LLM
+    - LLM responds: "Thought: I should check the weather\nAction: weather\nInput: London"
+    - `ReActAgent` parses the Action, looks up `WeatherTool` via `ToolRegistry`
+    - `WeatherTool.execute("London")` calls wttr.in API, returns weather data
+    - Observation is recorded in `AgentState`
+    - Next iteration: LLM gets the observation and produces "Final Answer: ..."
+    - Answer is saved to Redis and returned to the client
 
 ---
 
 ## Quick Reference
 
-| Endpoint | Method | Description |
-|---|---|---|
-| `/api/agent/chat` | POST | Chat with the AI agent |
-| `/api/agent/session/{id}/history` | GET | Get conversation history |
-| `/api/agent/session/{id}` | DELETE | Clear conversation memory |
-| `/api/agent/tools` | GET | List all available tools |
-| `/api/health` | GET | Health check |
-| `/api/documents/upload` | POST | Upload a document |
-| `/api/documents` | GET | List ingested documents |
-| `/api/documents/{docId}` | DELETE | Delete a document |
-| `/api/documents/search` | GET | Search documents |
-| `/mcp` | POST | MCP Streamable HTTP |
-| `/mcp/sse` | GET | MCP SSE transport |
-| `/mcp/message` | POST | MCP SSE message endpoint |
+| Endpoint                          | Method | Description               |
+|-----------------------------------|--------|---------------------------|
+| `/api/agent/chat`                 | POST   | Chat with the AI agent    |
+| `/api/agent/session/{id}/history` | GET    | Get conversation history  |
+| `/api/agent/session/{id}`         | DELETE | Clear conversation memory |
+| `/api/agent/tools`                | GET    | List all available tools  |
+| `/api/health`                     | GET    | Health check              |
+| `/api/documents/upload`           | POST   | Upload a document         |
+| `/api/documents`                  | GET    | List ingested documents   |
+| `/api/documents/{docId}`          | DELETE | Delete a document         |
+| `/api/documents/search`           | GET    | Search documents          |
+| `/mcp`                            | POST   | MCP Streamable HTTP       |
+| `/mcp/sse`                        | GET    | MCP SSE transport         |
+| `/mcp/message`                    | POST   | MCP SSE message endpoint  |
 
-| Config Property | Default | Description |
-|---|---|---|
-| `app.ollama.base-url` | `http://localhost:11434` | Ollama server URL |
-| `app.ollama.model` | `qwen3.5:4b` | Chat model name |
-| `app.ollama.timeout` | `120` | Request timeout (seconds) |
-| `app.ollama.max-tokens` | `2048` | Max output tokens (unused) |
-| `app.agent.max-iterations` | `10` | Max ReAct loop iterations |
-| `app.agent.memory-size` | `20` | Memory size (unused, code uses 50) |
-| `spring.ai.ollama.embedding.model` | `nomic-embed-text` | Embedding model |
+| Config Property                    | Default                  | Description                        |
+|------------------------------------|--------------------------|------------------------------------|
+| `app.ollama.base-url`              | `http://localhost:11434` | Ollama server URL                  |
+| `app.ollama.model`                 | `qwen3.5:4b`             | Chat model name                    |
+| `app.ollama.timeout`               | `120`                    | Request timeout (seconds)          |
+| `app.ollama.max-tokens`            | `2048`                   | Max output tokens (unused)         |
+| `app.agent.max-iterations`         | `10`                     | Max ReAct loop iterations          |
+| `app.agent.memory-size`            | `20`                     | Memory size (unused, code uses 50) |
+| `spring.ai.ollama.embedding.model` | `nomic-embed-text`       | Embedding model                    |

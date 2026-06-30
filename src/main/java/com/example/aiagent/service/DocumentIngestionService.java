@@ -1,6 +1,9 @@
 package com.example.aiagent.service;
 
 import com.example.aiagent.model.DocumentInfo;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
@@ -8,23 +11,15 @@ import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @Service
 public class DocumentIngestionService {
@@ -39,10 +34,16 @@ public class DocumentIngestionService {
     private final ObjectMapper objectMapper;
 
     public DocumentIngestionService(VectorStore vectorStore,
-                                     StringRedisTemplate redisTemplate,
-                                     ObjectMapper objectMapper) {
+                                    StringRedisTemplate redisTemplate,
+                                    ObjectMapper objectMapper) {
         this.vectorStore = vectorStore;
-        this.textSplitter = new TokenTextSplitter(500, 50, 5, 10000, true);
+        this.textSplitter = TokenTextSplitter.builder()
+                .withChunkSize(500)
+                .withMinChunkSizeChars(50)
+                .withMinChunkLengthToEmbed(5)
+                .withMaxNumChunks(10000)
+                .withKeepSeparator(true)
+                .build();
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
     }
@@ -96,7 +97,8 @@ public class DocumentIngestionService {
             if (json == null || json.isEmpty()) {
                 return new ArrayList<>();
             }
-            return objectMapper.readValue(json, new TypeReference<List<DocumentInfo>>() {});
+            return objectMapper.readValue(json, new TypeReference<List<DocumentInfo>>() {
+            });
         } catch (JsonProcessingException e) {
             log.error("Failed to deserialize document index", e);
             return new ArrayList<>();

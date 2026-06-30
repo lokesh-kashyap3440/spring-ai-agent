@@ -81,6 +81,7 @@
 ## Component Flow
 
 ### 1. Request Flow
+
 ```
 MCP Client → MCP Server Controller → ReAct Agent → Tool Registry → Tool Execution
      │                                                                      │
@@ -90,6 +91,7 @@ MCP Client → MCP Server Controller → ReAct Agent → Tool Registry → Tool 
 ```
 
 ### 2. RAG Flow
+
 ```
 Upload Document → DocumentIngestionService → Tika Parser → Text Splitter
                                                         │
@@ -104,6 +106,7 @@ User Query → RAGTool → Vector Search → Top-K Chunks → LLM Context → An
 ```
 
 ### 3. ReAct Agent Loop
+
 ```
 User Message
      │
@@ -126,25 +129,25 @@ Final Answer: response to user
 
 ## Key Configuration
 
-| Component | Port/URL | Purpose |
-|-----------|----------|---------|
-| Spring Boot | 8082 | Main application |
-| MCP SSE | GET /mcp/sse | Real-time event stream |
-| MCP HTTP | POST /mcp | JSON-RPC requests |
-| Redis | localhost:6380 | Agent memory & chat history |
-| Kafka | localhost:9093 | Event publishing |
-| Ollama | localhost:11434 | LLM & embeddings |
+| Component   | Port/URL        | Purpose                     |
+|-------------|-----------------|-----------------------------|
+| Spring Boot | 8082            | Main application            |
+| MCP SSE     | GET /mcp/sse    | Real-time event stream      |
+| MCP HTTP    | POST /mcp       | JSON-RPC requests           |
+| Redis       | localhost:6380  | Agent memory & chat history |
+| Kafka       | localhost:9093  | Event publishing            |
+| Ollama      | localhost:11434 | LLM & embeddings            |
 
 ## MCP Tools
 
-| Tool | Description | Input |
-|------|-------------|-------|
-| `get_weather` | Current weather for city | `city` |
-| `get_news` | News headlines by topic | `topic` |
-| `calculate` | Math expression evaluator | `expression` |
-| `query_database` | Knowledge base search | `query` |
-| `rag_search` | Document semantic search | `query` |
-| `upload_document` | Upload PDF/DOCX/TXT | `filename`, `content` (base64), `contentType` |
+| Tool              | Description               | Input                                         |
+|-------------------|---------------------------|-----------------------------------------------|
+| `get_weather`     | Current weather for city  | `city`                                        |
+| `get_news`        | News headlines by topic   | `topic`                                       |
+| `calculate`       | Math expression evaluator | `expression`                                  |
+| `query_database`  | Knowledge base search     | `query`                                       |
+| `rag_search`      | Document semantic search  | `query`                                       |
+| `upload_document` | Upload PDF/DOCX/TXT       | `filename`, `content` (base64), `contentType` |
 
 ## Security Notes
 

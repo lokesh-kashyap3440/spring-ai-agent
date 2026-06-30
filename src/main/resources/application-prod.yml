@@ -1,0 +1,90 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  ai:
+    ollama:
+      base-url: ${OLLAMA_BASE_URL}
+      embedding:
+        model: ${OLLAMA_EMBEDDING_MODEL}
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:2s}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    producer:
+      acks: ${KAFKA_PRODUCER_ACKS:all}
+      retries: ${KAFKA_PRODUCER_RETRIES:3}
+      compression-type: ${KAFKA_PRODUCER_COMPRESSION_TYPE:snappy}
+      linger-ms: ${KAFKA_PRODUCER_LINGER_MS:5}
+      batch-size: ${KAFKA_PRODUCER_BATCH_SIZE:16384}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID}
+      auto-offset-reset: ${KAFKA_CONSUMER_AUTO_OFFSET_RESET:latest}
+      concurrency: ${KAFKA_CONSUMER_CONCURRENCY:3}
+      max-poll-records: ${KAFKA_CONSUMER_MAX_POLL_RECORDS:500}
+      fetch-min-size: ${KAFKA_CONSUMER_FETCH_MIN_SIZE:1}
+      fetch-max-wait-ms: ${KAFKA_CONSUMER_FETCH_MAX_WAIT_MS:500}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: redis,kafka
+        liveness:
+          include: redis
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      service: ${spring.application.name}
+
+logging:
+  level:
+    com.example.aiagent: ${LOG_LEVEL:WARN}
+    org.springframework.kafka: ${KAFKA_LOG_LEVEL:WARN}
+    org.springframework.ai: ${AI_LOG_LEVEL:WARN}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: ${LOG_FILE_PATH:/var/log/ai-agent/application.log}
+  logback:
+    rollingpolicy:
+      max-file-size: ${LOG_MAX_FILE_SIZE:10MB}
+      max-history: ${LOG_MAX_HISTORY:30}
+      total-size-cap: ${LOG_TOTAL_SIZE_CAP:1GB}
+
+app:
+  ollama:
+    model: ${OLLAMA_MODEL}
+    timeout: ${OLLAMA_TIMEOUT:120}
+    max-tokens: ${OLLAMA_MAX_TOKENS:2048}
+    temperature: ${OLLAMA_TEMPERATURE:0.7}
+  agent:
+    max-iterations: ${AGENT_MAX_ITERATIONS:10}
+    memory-size: ${AGENT_MEMORY_SIZE:20}
+    verbose: ${AGENT_VERBOSE:false}
+  kafka:
+    topics:
+      events: ${KAFKA_TOPIC_EVENTS}
+      chat: ${KAFKA_TOPIC_CHAT}
+  mcp:
+    server:
+      name: ${MCP_SERVER_NAME}
+      version: ${MCP_SERVER_VERSION}

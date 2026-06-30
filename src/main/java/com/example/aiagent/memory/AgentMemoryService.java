@@ -10,9 +10,9 @@ import java.util.stream.Collectors;
 @Service
 public class AgentMemoryService {
 
-    private final StringRedisTemplate redisTemplate;
     private static final String MEMORY_PREFIX = "agent:memory:";
     private static final int MEMORY_TTL_HOURS = 24;
+    private final StringRedisTemplate redisTemplate;
 
     public AgentMemoryService(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
@@ -42,8 +42,8 @@ public class AgentMemoryService {
     public String getFormattedHistory(String sessionId) {
         List<String> history = getConversationHistory(sessionId);
         return history.stream()
-            .map(s -> "  " + s)
-            .collect(Collectors.joining("\n"));
+                .map(s -> "  " + s)
+                .collect(Collectors.joining("\n"));
     }
 
     public void clearMemory(String sessionId) {

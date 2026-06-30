@@ -15,30 +15,35 @@
             padding: 40px 20px;
             margin: 0;
         }
+
         h1 {
             color: #00d2ff;
             font-size: 2.2em;
             margin-bottom: 10px;
-            text-shadow: 0 0 20px rgba(0,210,255,0.3);
+            text-shadow: 0 0 20px rgba(0, 210, 255, 0.3);
         }
+
         h2 {
             color: #8892b0;
             font-weight: 300;
             margin-bottom: 30px;
         }
+
         .diagram-container {
             background: #16213e;
             border-radius: 16px;
             padding: 40px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
             margin-bottom: 40px;
             max-width: 1100px;
             width: 100%;
         }
+
         .mermaid {
             display: flex;
             justify-content: center;
         }
+
         .legend {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
@@ -46,6 +51,7 @@
             max-width: 1100px;
             width: 100%;
         }
+
         .legend-item {
             display: flex;
             align-items: center;
@@ -54,20 +60,25 @@
             padding: 12px 16px;
             border-radius: 8px;
         }
+
         .legend-color {
             width: 16px;
             height: 16px;
             border-radius: 4px;
             flex-shrink: 0;
         }
-        .legend-label { font-size: 0.9em; color: #ccd6f6; }
+
+        .legend-label {
+            font-size: 0.9em;
+            color: #ccd6f6;
+        }
     </style>
 </head>
 <body>
-    <h1>Spring AI Agent Architecture</h1>
-    <h2>ReAct Pattern | Ollama LLM | Redis | Kafka | RAG</h2>
+<h1>Spring AI Agent Architecture</h1>
+<h2>ReAct Pattern | Ollama LLM | Redis | Kafka | RAG</h2>
 
-    <div class="diagram-container">
+<div class="diagram-container">
         <pre class="mermaid">
 graph TD
     subgraph Clients["🌐 Clients"]
@@ -144,51 +155,51 @@ graph TD
     class WT,NT,CT,DT,RT tool
     class RD,KK,VS,OL2 storage
         </pre>
-    </div>
+</div>
 
-    <div class="legend">
-        <div class="legend-item">
-            <div class="legend-color" style="background:#00d2ff"></div>
-            <span class="legend-label">Clients</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background:#00e676"></div>
-            <span class="legend-label">Controllers</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background:#448aff"></div>
-            <span class="legend-label">Agent Core</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background:#ffab40"></div>
-            <span class="legend-label">Tools</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background:#ce93d8"></div>
-            <span class="legend-label">Storage</span>
-        </div>
+<div class="legend">
+    <div class="legend-item">
+        <div class="legend-color" style="background:#00d2ff"></div>
+        <span class="legend-label">Clients</span>
     </div>
+    <div class="legend-item">
+        <div class="legend-color" style="background:#00e676"></div>
+        <span class="legend-label">Controllers</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-color" style="background:#448aff"></div>
+        <span class="legend-label">Agent Core</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-color" style="background:#ffab40"></div>
+        <span class="legend-label">Tools</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-color" style="background:#ce93d8"></div>
+        <span class="legend-label">Storage</span>
+    </div>
+</div>
 
-    <script>
-        mermaid.initialize({
-            startOnLoad: true,
-            theme: 'dark',
-            themeVariables: {
-                darkMode: true,
-                background: '#16213e',
-                primaryColor: '#1a237e',
-                primaryTextColor: '#e0e0e0',
-                lineColor: '#546e7a',
-                fontSize: '14px'
-            },
-            flowchart: {
-                curve: 'basis',
-                padding: 20,
-                nodeSpacing: 50,
-                rankSpacing: 60,
-                useMaxWidth: true
-            }
-        });
-    </script>
+<script>
+    mermaid.initialize({
+        startOnLoad: true,
+        theme: 'dark',
+        themeVariables: {
+            darkMode: true,
+            background: '#16213e',
+            primaryColor: '#1a237e',
+            primaryTextColor: '#e0e0e0',
+            lineColor: '#546e7a',
+            fontSize: '14px'
+        },
+        flowchart: {
+            curve: 'basis',
+            padding: 20,
+            nodeSpacing: 50,
+            rankSpacing: 60,
+            useMaxWidth: true
+        }
+    });
+</script>
 </body>
 </html>

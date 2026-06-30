@@ -47,27 +47,27 @@ curl -X POST http://localhost:8080/api/agent/chat \
 
 ### Agent API
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/agent/chat` | Send a message to the agent |
-| GET | `/api/agent/session/{sessionId}/history` | Get conversation history |
-| DELETE | `/api/agent/session/{sessionId}` | Clear session memory |
-| GET | `/api/agent/tools` | List available tools |
-| GET | `/api/health` | Health check |
+| Method | Endpoint                                 | Description                 |
+|--------|------------------------------------------|-----------------------------|
+| POST   | `/api/agent/chat`                        | Send a message to the agent |
+| GET    | `/api/agent/session/{sessionId}/history` | Get conversation history    |
+| DELETE | `/api/agent/session/{sessionId}`         | Clear session memory        |
+| GET    | `/api/agent/tools`                       | List available tools        |
+| GET    | `/api/health`                            | Health check                |
 
 ### MCP Server API
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/mcp/message` | MCP JSON-RPC endpoint |
+| Method | Endpoint       | Description           |
+|--------|----------------|-----------------------|
+| POST   | `/mcp/message` | MCP JSON-RPC endpoint |
 
 #### MCP Tools Available
 
-| Tool | Description | Input |
-|------|-------------|-------|
-| `get_weather` | Get current weather | `{"city": "London"}` |
-| `get_news` | Get news headlines | `{"topic": "technology"}` |
-| `calculate` | Evaluate math | `{"expression": "2 + 2"}` |
+| Tool             | Description          | Input                               |
+|------------------|----------------------|-------------------------------------|
+| `get_weather`    | Get current weather  | `{"city": "London"}`                |
+| `get_news`       | Get news headlines   | `{"topic": "technology"}`           |
+| `calculate`      | Evaluate math        | `{"expression": "2 + 2"}`           |
 | `query_database` | Query knowledge base | `{"query": "What is Spring Boot?"}` |
 
 #### MCP Client Config
@@ -90,6 +90,7 @@ curl -X POST http://localhost:8080/api/agent/chat \
 ## Example Requests
 
 ### Chat
+
 ```bash
 curl -X POST http://localhost:8080/api/agent/chat \
   -H "Content-Type: application/json" \
@@ -97,6 +98,7 @@ curl -X POST http://localhost:8080/api/agent/chat \
 ```
 
 ### MCP Tool Call
+
 ```bash
 curl -X POST http://localhost:8080/mcp/message \
   -H "Content-Type: application/json" \
@@ -112,6 +114,7 @@ curl -X POST http://localhost:8080/mcp/message \
 ```
 
 ### List MCP Tools
+
 ```bash
 curl -X POST http://localhost:8080/mcp/message \
   -H "Content-Type: application/json" \

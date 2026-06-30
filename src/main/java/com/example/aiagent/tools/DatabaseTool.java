@@ -1,11 +1,11 @@
 package com.example.aiagent.tools;
 
-import org.springframework.stereotype.Component;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Component;
 
-import java.util.Map;
+import java.time.Duration;
 import java.util.HashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
 
 @Component
 public class DatabaseTool implements Tool {
@@ -50,7 +50,7 @@ public class DatabaseTool implements Tool {
 
             for (Map.Entry<String, String> entry : knowledgeBase.entrySet()) {
                 if (query.contains(entry.getKey())) {
-                    redisTemplate.opsForValue().set(cacheKey, entry.getValue(), 5, TimeUnit.MINUTES);
+                    redisTemplate.opsForValue().set(cacheKey, entry.getValue(), Duration.ofMinutes(5));
                     return "Found: " + entry.getValue();
                 }
             }
