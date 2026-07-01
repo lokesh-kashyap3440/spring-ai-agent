@@ -8,12 +8,14 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
+
+import java.time.Duration;
 
 @Service
 @ConditionalOnProperty(name = "app.ai.provider", havingValue = "ollama")
@@ -21,29 +23,45 @@ public class OllamaService implements AiService {
 
     private static final Logger log = LoggerFactory.getLogger(OllamaService.class);
 
-    private final RestTemplate restTemplate;
+    private final WebClient webClient;
     private final OllamaConfig config;
     private final ObjectMapper objectMapper;
 
-    public OllamaService(RestTemplate restTemplate, OllamaConfig config, ObjectMapper objectMapper) {
-        this.restTemplate = restTemplate;
+    public OllamaService(WebClient webClient, OllamaConfig config, ObjectMapper objectMapper) {
+        this.webClient = webClient;
         this.config = config;
         this.objectMapper = objectMapper;
     }
 
+    @Override
     public String chat(String systemPrompt, String userMessage) {
         try {
             String requestBody = buildChatRequest(systemPrompt, userMessage);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
+            String response = webClient.post()
+                    .uri(config.getBaseUrl() + "/api/chat")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(config.getTimeout()))
+                    .onErrorResume(e -> {
+                        log.error("Ollama API error: {}", e.getMessage());
+                        return Mono.just("{\"message\":{\"content\":\"Error communicating with Ollama: " + e.getMessage() + "\"}}");
+                    })
+                    .block();
 
-            String url = config.getBaseUrl() + "/api/chat";
-            String response = restTemplate.postForObject(url, entity, String.class);
+            if (response == null) {
+                return "Error: No response from Ollama";
+            }
 
             JsonNode responseJson = objectMapper.readTree(response);
-            return responseJson.path("message").path("content").asText("No response");
+            String content = responseJson.path("message").path("content").asText();
+            if (content == null || content.isBlank()) {
+                content = "No response";
+                log.warn("Ollama returned empty content. Raw response: {}", response.length() > 500 ? response.substring(0, 500) + "..." : response);
+            }
+            return content;
         } catch (Exception e) {
             log.error("Ollama API error: {}", e.getMessage());
             return "Error communicating with Ollama: " + e.getMessage();
@@ -70,12 +88,23 @@ public class OllamaService implements AiService {
         messages.add(userMsg);
 
         requestBody.set("messages", messages);
+
+        ObjectNode options = objectMapper.createObjectNode();
+        options.put("num_predict", config.getMaxTokens());
+        requestBody.set("options", options);
+
         return objectMapper.writeValueAsString(requestBody);
     }
 
+    @Override
     public boolean isAvailable() {
         try {
-            restTemplate.getForObject(config.getBaseUrl() + "/api/tags", String.class);
+            webClient.get()
+                    .uri(config.getBaseUrl() + "/api/tags")
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(5))
+                    .block();
             return true;
         } catch (Exception e) {
             log.warn("Ollama is not available: {}", e.getMessage());

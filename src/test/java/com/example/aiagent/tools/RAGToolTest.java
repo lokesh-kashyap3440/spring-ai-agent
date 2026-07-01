@@ -49,7 +49,7 @@ class RAGToolTest {
                 .thenReturn(List.of(new DocumentInfo("1", "doc.pdf", "application/pdf", 100, 1)));
 
         String result = tool.execute("refund policy");
-        assertTrue(result.contains("Section 1"));
+        assertTrue(result.contains("Document excerpt 1"));
         assertTrue(result.contains("doc.pdf"));
         assertTrue(result.contains("This is the content"));
     }

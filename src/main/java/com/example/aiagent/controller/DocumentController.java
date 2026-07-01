@@ -1,5 +1,6 @@
 package com.example.aiagent.controller;
 
+import com.example.aiagent.config.RagConfig;
 import com.example.aiagent.model.DocumentInfo;
 import com.example.aiagent.service.DocumentIngestionService;
 import org.slf4j.Logger;
@@ -15,7 +16,6 @@ import java.util.Set;
 
 @RestController
 @RequestMapping("/api/documents")
-@CrossOrigin(origins = "*")
 public class DocumentController {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentController.class);
@@ -28,9 +28,11 @@ public class DocumentController {
     );
 
     private final DocumentIngestionService ingestionService;
+    private final RagConfig ragConfig;
 
-    public DocumentController(DocumentIngestionService ingestionService) {
+    public DocumentController(DocumentIngestionService ingestionService, RagConfig ragConfig) {
         this.ingestionService = ingestionService;
+        this.ragConfig = ragConfig;
     }
 
     @PostMapping("/upload")
@@ -87,7 +89,7 @@ public class DocumentController {
 
     @GetMapping("/search")
     public ResponseEntity<Map<String, Object>> search(@RequestParam String query) {
-        var results = ingestionService.search(query, 3);
+        var results = ingestionService.search(query, ragConfig.getTopK());
         return ResponseEntity.ok(Map.of(
                 "query", query,
                 "results", results.size(),

@@ -2,6 +2,7 @@ package com.example.aiagent.tools;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.client.RestTemplate;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -11,7 +12,7 @@ class WeatherToolTest {
 
     @BeforeEach
     void setUp() {
-        tool = new WeatherTool();
+        tool = new WeatherTool(new RestTemplate());
     }
 
     @Test

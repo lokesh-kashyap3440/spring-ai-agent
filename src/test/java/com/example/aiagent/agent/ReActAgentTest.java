@@ -50,6 +50,10 @@ class ReActAgentTest {
         lenient().doNothing().when(kafkaPublisher).publishAgentEvent(anyString(), anyString(), anyString());
         lenient().when(toolRegistry.getToolDescriptions(any())).thenReturn("");
         lenient().when(ingestionService.search(anyString(), anyInt())).thenReturn(List.of());
+        lenient().when(toolRegistry.isToolEnabled(eq("rag_search"), any())).thenReturn(true);
+        Tool ragTool = mock(Tool.class);
+        lenient().when(ragTool.execute(anyString())).thenReturn("No results found");
+        lenient().when(toolRegistry.getTool("rag_search")).thenReturn(ragTool);
         agent = new ReActAgent(aiService, memoryService, toolRegistry, agentConfig, kafkaPublisher, ingestionService);
     }
 
@@ -60,7 +64,7 @@ class ReActAgentTest {
                 Final Answer: Paris is the capital of France.
                 """);
 
-        ReActAgent.AgentResult result = agent.run("What is the capital of France?", "session-1", null);
+        ReActAgent.AgentResult result = agent.run("What is the capital of France?", "session-1", Set.of("weather"));
 
         assertEquals("Paris is the capital of France.", result.answer());
         assertTrue(result.toolsUsed().isEmpty());

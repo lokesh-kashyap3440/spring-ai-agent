@@ -41,7 +41,7 @@ public class RAGTool implements Tool {
 
             log.info("RAG search query: {}", query);
 
-            List<Document> results = ingestionService.search(query, 5);
+            List<Document> results = ingestionService.search(query, 15);
 
             if (results.isEmpty()) {
                 return "NO_RESULTS: No relevant information found in any uploaded document for the query: " + query + ". The uploaded documents do not contain this information.";
@@ -59,9 +59,12 @@ public class RAGTool implements Tool {
                 Document doc = results.get(i);
                 String filename = (String) doc.getMetadata().getOrDefault("filename", "unknown");
                 String content = doc.getText();
+                if (content.length() > 600) {
+                    content = content.substring(0, 600);
+                }
 
-                response.append("--- Section ").append(i + 1)
-                        .append(" (from: ").append(filename).append(") ---\n");
+                response.append("--- Document excerpt ").append(i + 1)
+                        .append(" (source: ").append(filename).append(") ---\n");
                 response.append(content).append("\n\n");
             }
 

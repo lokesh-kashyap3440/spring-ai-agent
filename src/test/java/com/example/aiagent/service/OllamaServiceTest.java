@@ -8,18 +8,36 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpEntity;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.http.MediaType;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@MockitoSettings(strictness = Strictness.LENIENT)
+
 @ExtendWith(MockitoExtension.class)
 class OllamaServiceTest {
 
     @Mock
-    private RestTemplate restTemplate;
+    private WebClient webClient;
+
+    @Mock
+    private WebClient.RequestBodyUriSpec requestBodyUriSpec;
+
+    @Mock
+    private WebClient.RequestHeadersUriSpec requestHeadersUriSpec;
+
+    @Mock
+    private WebClient.RequestHeadersSpec requestHeadersSpec;
+
+    @Mock
+    private WebClient.ResponseSpec responseSpec;
 
     private OllamaConfig config;
     private ObjectMapper objectMapper;
@@ -32,15 +50,19 @@ class OllamaServiceTest {
         config.setModel("qwen3.5:4b");
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
-        service = new OllamaService(restTemplate, config, objectMapper);
+        service = new OllamaService(webClient, config, objectMapper);
+
+        when(webClient.post()).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.contentType(MediaType.APPLICATION_JSON)).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.bodyValue(anyString())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     }
 
     @Test
     void testChatSuccess() {
         String apiResponse = "{\"message\": {\"content\": \"Hello! How can I help you?\"}}";
-        when(restTemplate.postForObject(eq("http://localhost:11434/api/chat"),
-                any(HttpEntity.class), eq(String.class)))
-                .thenReturn(apiResponse);
+        when(responseSpec.bodyToMono(eq(String.class))).thenReturn(Mono.just(apiResponse));
 
         String result = service.chat("system prompt", "hello");
 
@@ -49,8 +71,8 @@ class OllamaServiceTest {
 
     @Test
     void testChatApiError() {
-        when(restTemplate.postForObject(anyString(), any(HttpEntity.class), eq(String.class)))
-                .thenThrow(new RuntimeException("Connection refused"));
+        when(responseSpec.bodyToMono(eq(String.class)))
+                .thenReturn(Mono.error(new RuntimeException("Connection refused")));
 
         String result = service.chat("system prompt", "hello");
 
@@ -60,8 +82,7 @@ class OllamaServiceTest {
     @Test
     void testChatEmptyContentReturnsDefault() {
         String apiResponse = "{\"message\": {}}";
-        when(restTemplate.postForObject(anyString(), any(HttpEntity.class), eq(String.class)))
-                .thenReturn(apiResponse);
+        when(responseSpec.bodyToMono(eq(String.class))).thenReturn(Mono.just(apiResponse));
 
         String result = service.chat("system prompt", "hello");
 
@@ -70,35 +91,38 @@ class OllamaServiceTest {
 
     @Test
     void testIsAvailableReturnsTrue() {
-        when(restTemplate.getForObject("http://localhost:11434/api/tags", String.class))
-                .thenReturn("{\"models\": []}");
+        when(webClient.get()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToMono(eq(String.class))).thenReturn(Mono.just("{\"models\": []}"));
 
         assertTrue(service.isAvailable());
     }
 
     @Test
     void testIsAvailableReturnsFalse() {
-        when(restTemplate.getForObject("http://localhost:11434/api/tags", String.class))
-                .thenThrow(new RuntimeException("Not available"));
+        when(webClient.get()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToMono(eq(String.class)))
+                .thenReturn(Mono.error(new RuntimeException("Not available")));
 
         assertFalse(service.isAvailable());
     }
 
     @Test
-    void testChatRequestIncludesSystemPrompt() throws Exception {
-        when(restTemplate.postForObject(anyString(), any(HttpEntity.class), eq(String.class)))
-                .thenReturn("{\"message\": {\"content\": \"ok\"}}");
+    void testChatRequestIncludesSystemPrompt() {
+        when(responseSpec.bodyToMono(eq(String.class)))
+                .thenReturn(Mono.just("{\"message\": {\"content\": \"ok\"}}"));
 
         service.chat("You are a helpful assistant", "tell me a joke");
 
-        verify(restTemplate).postForObject(eq("http://localhost:11434/api/chat"),
-                argThat((HttpEntity<String> entity) -> {
-                    String body = entity.getBody();
-                    return body.contains("\"role\":\"system\"")
-                            && body.contains("\"role\":\"user\"")
-                            && body.contains("\"model\":\"qwen3.5:4b\"")
-                            && body.contains("\"stream\":false");
-                }),
-                eq(String.class));
+        verify(requestBodyUriSpec).bodyValue(argThat(body -> {
+            String str = (String) body;
+            return str.contains("\"role\":\"system\"")
+                    && str.contains("\"role\":\"user\"")
+                    && str.contains("\"model\":\"qwen3.5:4b\"")
+                    && str.contains("\"stream\":false");
+        }));
     }
 }

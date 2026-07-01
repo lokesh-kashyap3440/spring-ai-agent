@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
@@ -32,10 +33,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/mcp")
-@CrossOrigin(origins = "*")
 public class McpServerController {
 
     private static final Logger log = LoggerFactory.getLogger(McpServerController.class);
+    private static final int MAX_SSE_CONNECTIONS = 100;
+    private static final long SSE_TIMEOUT_MS = Duration.ofMinutes(30).toMillis();
 
     private final ConcurrentHashMap<String, SseEmitter> emitters = new ConcurrentHashMap<>();
     private final WeatherTool weatherTool;
@@ -61,12 +63,19 @@ public class McpServerController {
 
     @GetMapping(value = "/sse", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter connect() {
+        if (emitters.size() >= MAX_SSE_CONNECTIONS) {
+            throw new IllegalStateException("Maximum SSE connections reached: " + MAX_SSE_CONNECTIONS);
+        }
+
         String sessionId = UUID.randomUUID().toString();
-        SseEmitter emitter = new SseEmitter(0L);
+        SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         emitters.put(sessionId, emitter);
 
         emitter.onCompletion(() -> emitters.remove(sessionId));
-        emitter.onTimeout(() -> emitters.remove(sessionId));
+        emitter.onTimeout(() -> {
+            emitters.remove(sessionId);
+            log.debug("SSE connection timed out for session: {}", sessionId);
+        });
         emitter.onError(e -> emitters.remove(sessionId));
 
         try {
@@ -76,45 +85,19 @@ public class McpServerController {
         } catch (IOException e) {
             log.error("Failed to send endpoint event", e);
             emitters.remove(sessionId);
+            throw new IllegalStateException("Failed to initialize SSE connection", e);
         }
 
+        log.info("New SSE connection established: session={}, totalConnections={}", sessionId, emitters.size());
         return emitter;
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Object> handleStreamableHttp(@RequestBody ObjectNode request) {
-        String method = request.has("method") ? request.get("method").asText() : null;
-        JsonNode params = request.has("params") ? request.get("params") : null;
-        String id = request.has("id") ? request.get("id").asText() : null;
-
-        log.info("MCP streamable HTTP: method={}, id={}", method, id);
-
-        if (id == null) {
+        ObjectNode response = dispatchJsonRpc(request);
+        if (response == null) {
             return ResponseEntity.noContent().build();
         }
-
-        ObjectNode response = objectMapper.createObjectNode();
-        response.put("jsonrpc", "2.0");
-        response.put("id", id);
-
-        try {
-            switch (method) {
-                case "initialize" -> handleInitialize(response);
-                case "tools/list" -> handleToolsList(response);
-                case "tools/call" -> handleToolsCall(params, response);
-                default -> {
-                    response.putObject("error")
-                            .put("code", -32601)
-                            .put("message", "Method not found: " + method);
-                }
-            }
-        } catch (Exception e) {
-            log.error("MCP error: {}", e.getMessage());
-            response.putObject("error")
-                    .put("code", -32603)
-                    .put("message", "Internal error: " + e.getMessage());
-        }
-
         return ResponseEntity.ok(response);
     }
 
@@ -126,18 +109,35 @@ public class McpServerController {
             return ResponseEntity.notFound().build();
         }
 
+        ObjectNode response = dispatchJsonRpc(request);
+
+        if (response != null) {
+            try {
+                emitter.send(SseEmitter.event()
+                        .name("message")
+                        .data(response, MediaType.APPLICATION_JSON));
+            } catch (IOException e) {
+                log.error("Failed to send SSE response", e);
+            }
+        }
+
+        return ResponseEntity.accepted().build();
+    }
+
+    private ObjectNode dispatchJsonRpc(ObjectNode request) {
         String method = request.has("method") ? request.get("method").asText() : null;
         JsonNode params = request.has("params") ? request.get("params") : null;
         String id = request.has("id") ? request.get("id").asText() : null;
 
-        log.info("MCP request: method={}, id={}", method, id);
-
-        if (id == null) {
-            return ResponseEntity.accepted().build();
-        }
+        log.info("MCP JSON-RPC: method={}, id={}", method, id);
 
         ObjectNode response = objectMapper.createObjectNode();
         response.put("jsonrpc", "2.0");
+
+        if (id == null) {
+            return null;
+        }
+
         response.put("id", id);
 
         try {
@@ -158,15 +158,7 @@ public class McpServerController {
                     .put("message", "Internal error: " + e.getMessage());
         }
 
-        try {
-            emitter.send(SseEmitter.event()
-                    .name("message")
-                    .data(response, MediaType.APPLICATION_JSON));
-        } catch (IOException e) {
-            log.error("Failed to send SSE response", e);
-        }
-
-        return ResponseEntity.accepted().build();
+        return response;
     }
 
     private void handleInitialize(ObjectNode response) {

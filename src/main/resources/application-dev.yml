@@ -9,12 +9,6 @@ spring:
       embedding:
         model: nomic-embed-text
 
-  data:
-    redis:
-      host: localhost
-      port: 6380
-      timeout: 2s
-
   kafka:
     bootstrap-servers: localhost:9093
     consumer:
@@ -23,9 +17,10 @@ spring:
 
 app:
   ollama:
-    model: qwen3.5:4b
-    timeout: 120
+    model: llama3.2:3b
+    timeout: 180
     max-tokens: 2048
+    context-length: 4096
     temperature: 0.7
   agent:
     max-iterations: 10

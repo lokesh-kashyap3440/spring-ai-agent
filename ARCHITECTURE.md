@@ -5,8 +5,8 @@
 │                              MCP Clients                                    │
 │                    (JSON-RPC over SSE / HTTP POST)                          │
 └────────────────────────────────┬────────────────────────────────────────────┘
-                                 │
-                                 ▼
+                                  │
+                                  ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                  Spring Boot Application (Port 8082)                        │
 │                                                                             │
@@ -22,17 +22,17 @@
 │  ┌───────────────────────────────────────────────────────────────────────┐ │
 │  │                        ReActAgent                                     │ │
 │  │  Pattern: Thought → Action → Observation → Final Answer              │ │
-│  │  Max Iterations: 10                                                   │ │
+│  │  Max Iterations: 10 (configurable)                                   │ │
 │  └───────────────────────────────────────────────────────────────────────┘ │
 │           │              │                  │                               │
 │           ▼              ▼                  ▼                               │
 │  ┌────────────────┐ ┌─────────────────┐ ┌─────────────────────────────┐   │
-│  │ ToolRegistry   │ │AgentMemoryService│ │   OllamaService            │   │
+│  │ ToolRegistry   │ │AgentMemoryService│ │   AiService (NVIDIA/Ollama)│   │
 │  │                │ │                 │ │                             │   │
-│  │ Registers all  │ │ Redis-backed    │ │ HTTP Client to Ollama      │   │
-│  │ available tools│ │ - Chat history  │ │ - Base: localhost:11434    │   │
-│  │                │ │ - Session state │ │ - Chat: qwen3.5:4b         │   │
-│  │                │ │ - Memory size:20│ │ - Embed: nomic-embed-text  │   │
+│  │ Registers all  │ │ JDBC-backed     │ │ HTTP Client to LLM         │   │
+│  │ available tools│ │ - Chat history  │ │ - Default: NVIDIA          │   │
+│  │                │ │ - Session state │ │ - Fallback: Ollama         │   │
+│  │                │ │ - Memory size:20│ │                             │   │
 │  └───────┬────────┘ └─────────────────┘ └─────────────────────────────┘   │
 │          │                                                                │
 │          ▼                                                                │
@@ -43,38 +43,37 @@
 │  │  │            │ │          │ │Tool       │ │            │          │  │
 │  │  │get_weather │ │get_news  │ │calculate  │ │query_database│        │  │
 │  │  └────────────┘ └──────────┘ └───────────┘ └────────────┘          │  │
-│  │  ┌────────────┐ ┌──────────┐                                       │  │
-│  │  │ RAGTool    │ │Document  │                                       │  │
-│  │  │            │ │Ingestion │                                       │  │
-│  │  │rag_search  │ │upload_document                                  │  │
-│  │  └────────────┘ └──────────┘                                       │  │
+│  │  ┌────────────┐ ┌──────────────────────────────────┐               │  │
+│  │  │ RAGTool    │ │   DocumentIngestionService       │               │  │
+│  │  │            │ │   (Tika + TokenTextSplitter)      │               │  │
+│  │  │rag_search  │ │                                   │               │  │
+│  │  └────────────┘ └──────────────────────────────────┘               │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 │          │                                                                │
 │          ▼                                                                │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
-│  │              SimpleVectorStore (In-Memory RAG)                      │  │
+│  │              PgVectorStore (PostgreSQL + pgvector)                   │  │
 │  │  • Embeddings: nomic-embed-text (via Ollama)                       │  │
-│  │  • Document chunks stored in memory                                │  │
-│  │  • Replaces ChromaDB (HTTP/2 compatibility issue)                  │  │
+│  │  • Document chunks persisted in Postgres                           │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
-│  │              KafkaEventPublisher                                    │  │
+│  │              KafkaEventPublisher (optional)                          │  │
 │  │  Topics:                                                            │  │
 │  │  • ai-agent-events  (agent actions, tool calls)                    │  │
 │  │  • ai-agent-chat    (chat messages)                                │  │
 │  └─────────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────────┘
-         │                    │                     │
-         │                    │                     │
-         ▼                    ▼                     ▼
+          │                    │                     │
+          │                    │                     │
+          ▼                    ▼                     ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────────────┐
-│     Redis       │ │     Kafka       │ │        Ollama               │
-│   (Port 6380)   │ │   (Port 9093)   │ │      (Port 11434)           │
-│                 │ │                 │ │                             │
-│ • Agent memory  │ │ • Event streaming│ │ • LLM: qwen3.5:4b          │
-│ • Chat history  │ │ • Async logging │ │ • Embedding: nomic-embed   │
-│ • Session state │ │ • Audit trail   │ │ • Local inference          │
+│    PostgreSQL   │ │     Kafka       │ │        Ollama               │
+│   (Local/Prod)  │ │   (Optional)    │ │      (Port 11434)           │
+│                 │ │   (Port 9093)   │ │                             │
+│ • Vector store  │ │                 │ │ • LLM: qwen3.5:4b          │
+│ • Chat history  │ │ • Event logging │ │ • Embedding: nomic-embed   │
+│ • Doc metadata  │ │ • Audit trail   │ │ • Local inference          │
 └─────────────────┘ └─────────────────┘ └─────────────────────────────┘
 ```
 

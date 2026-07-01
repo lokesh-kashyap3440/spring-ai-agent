@@ -1,5 +1,6 @@
 package com.example.aiagent.memory;
 
+import com.example.aiagent.config.AgentConfig;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -8,11 +9,12 @@ import java.util.List;
 @Service
 public class AgentMemoryService {
 
-    private static final int MAX_MESSAGES = 50;
     private final JdbcTemplate jdbc;
+    private final int maxMessages;
 
-    public AgentMemoryService(JdbcTemplate jdbc) {
+    public AgentMemoryService(JdbcTemplate jdbc, AgentConfig agentConfig) {
         this.jdbc = jdbc;
+        this.maxMessages = agentConfig.getMemorySize();
     }
 
     public void saveMessage(String sessionId, String role, String content) {
@@ -32,7 +34,8 @@ public class AgentMemoryService {
     public String getFormattedHistory(String sessionId) {
         List<String> history = getConversationHistory(sessionId);
         if (history.isEmpty()) return "";
-        return String.join("\n", history.stream().map(s -> "  " + s).toList());
+        int start = Math.max(0, history.size() - 6);
+        return String.join("\n", history.subList(start, history.size()).stream().map(s -> "  " + s).toList());
     }
 
     public void clearMemory(String sessionId) {
@@ -59,6 +62,6 @@ public class AgentMemoryService {
                     SELECT id FROM conversation_memory WHERE session_id = ?
                     ORDER BY id DESC OFFSET ? LIMIT 1
                 )
-                """, sessionId, sessionId, MAX_MESSAGES);
+                """, sessionId, sessionId, maxMessages);
     }
 }

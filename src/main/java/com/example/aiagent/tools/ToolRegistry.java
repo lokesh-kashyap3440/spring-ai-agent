@@ -8,6 +8,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Central registry for all available {@link Tool} implementations.
+ *
+ * <p>Tools are auto-discovered via Spring dependency injection and stored
+ * with lowercase-normalized names for case-insensitive lookup. Provides
+ * filtering support for enabling/disabling tools per request.</p>
+ */
 @Component
 public class ToolRegistry {
 
@@ -15,7 +22,7 @@ public class ToolRegistry {
 
     public ToolRegistry(List<Tool> toolList) {
         for (Tool tool : toolList) {
-            tools.put(tool.getName(), tool);
+            tools.put(tool.getName().toLowerCase(), tool);
         }
     }
 
@@ -55,6 +62,6 @@ public class ToolRegistry {
         if (enabledTools == null) {
             return getToolNames();
         }
-        return String.join(", ", enabledTools);
+        return String.join(", ", enabledTools.stream().map(String::toLowerCase).toList());
     }
 }

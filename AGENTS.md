@@ -262,3 +262,67 @@ Added comprehensive unit test coverage for all 28 application classes. Uses JUni
 ```bash
 mvn test
 ```
+
+---
+
+# Redis → PostgreSQL + Dockerization + Auth (June 30, 2026)
+
+Migrated from Redis to PostgreSQL+pgvector, added JWT auth, Swagger, Dockerized the stack.
+
+## Changes
+
+| File | Change |
+|------|--------|
+| `pom.xml` | `spring-ai-starter-vector-store-redis` → `spring-ai-pgvector-store`, removed `spring-boot-starter-data-redis` |
+| `config/PgVectorStoreConfig.java` | **New** — `PgVectorStore` bean with 768-dim, HNSW index, `initializeSchema=true` |
+| `config/VectorStoreConfig.java` | Deleted (was Redis-specific) |
+| `security/UserRepository.java` | Rewrote from `ConcurrentHashMap` to `JdbcTemplate` (persistent users) |
+| `service/AgentMemoryService.java` | Rewrote from `StringRedisTemplate` to `JdbcTemplate` |
+| `service/DocumentIngestionService.java` | Rewrote from `StringRedisTemplate` to `JdbcTemplate` |
+| `resources/schema.sql` | Added `users`, `conversation_memory`, `document_metadata` tables |
+| `resources/application.yml` | Removed Redis config, replaced with PostgreSQL; datasource defaults fixed; NVIDIA timeout 60→120s; Ollama base-url default fixed |
+| `Dockerfile` | Simplified — pre-built JAR copied into `eclipse-temurin:21-jre-alpine` |
+| `docker-compose.yml` | `postgres` (pgvector/pgvector:pg16), `kafka` (cp-kafka:7.5.0), `ollama` (ollama:latest on 0.0.0.0:11435), `app` services; removed ChromaDB, Redis |
+| `.gitignore` | Added `.env` |
+| `.env.example` | **New** — template with all 34 config env vars |
+| `.dockerignore` | Fixed to only exclude `target/*` except the JAR |
+| `security/SecurityConfig.java` | JWT + Swagger + MCP + static resources permitted, all else authenticated |
+| `controller/AuthController.java` | **New** — `/api/auth/register`, `/api/auth/login` with JWT tokens |
+| `config/OpenApiConfig.java` | **New** — Swagger/OpenAPI with JWT bearer token support |
+| `resources/static/index.html` | Login/register screen + chat UI with JWT token storage |
+
+## Bug Fixes
+
+| Issue | Fix |
+|-------|-----|
+| PostgreSQL + pgvector artifact name | Changed from `spring-ai-vector-store-pgvector` → `spring-ai-pgvector-store` (BOM-managed) |
+| `PgVectorStoreConfig` used wrong API | `PgDistanceType`/`PgIndexType` are inner classes of `PgVectorStore`, not top-level imports |
+| NVIDIA 500 error in Docker | Empty `NVIDIA_API_KEY` in container overrode hardcoded default — removed hardcoded key, added null/blank check in `NvidiaService` |
+| Ollama connection in Docker | Added `OLLAMA_HOST=0.0.0.0:11435` to ollama service, app connects via `http://ollama:11435` |
+| Users reset on restart | `UserRepository` migrated from `ConcurrentHashMap` to `users` table in PostgreSQL |
+| Kafka single-node replication | Changed `replication.factor` from 3 → 1 |
+| Slow vector search | Added `PgVectorStore.PgIndexType.HNSW` + `PgDistanceType.COSINE_DISTANCE` |
+| NVIDIA 60s timeout | Increased `NVIDIA_TIMEOUT` from 60 → 120 |
+
+## Key Decisions
+
+- **NVIDIA API key** — removed from codebase entirely; stored in `.env` (gitignored) or set via shell env var
+- **Ollama in Docker** — runs on port 11435, pulls `nomic-embed-text` on startup
+- **`NVIDIA_TIMEOUT=120`** — longer timeout accommodates slow ReAct iterations with RAG
+
+## Test Fixes (June 30, 2026)
+
+Fixed compilation and runtime errors in tests after migration:
+
+| Test | Issue | Fix |
+|------|-------|-----|
+| `NvidiaServiceTest` | Wrong `WebClient.get()` return type (`RequestBodyUriSpec` vs `RequestHeadersUriSpec`); `verify(headers)` arg type; `UnnecessaryStubbingException`; mocked `Mono` didn't chain `.timeout()`/`.onErrorResume()` | `@MockitoSettings(LENIENT)`, real `Mono.just()`/`Mono.error()`, `RequestHeadersUriSpec` mock for `get()`, fixed verify arg |
+| `OllamaServiceTest` | Same `WebClient.get()` type issues, `UnnecessaryStubbingException` | Same fixes as NvidiaServiceTest |
+| `McpServerControllerTest` | Expected 204 but got 200 for null-id/SSE endpoints | `dispatchJsonRpc` returns `null` when `id` is null; controller returns 204 |
+| `KafkaConfigTest` | NPE — missing `max.block.ms`, `retries` properties | Added both to `KafkaConfig.java` |
+| `DocumentIngestionServiceTest` | Unnecessary `getTopK()` stub in `testSearchWithTopK` | Removed unused stub |
+| `VectorStoreConfigTest` | Wrong test count | Reduced from 3→1 (API changed) |
+
+## TODO
+
+- [ ] Create entirely new frontend from scratch using **Tailwind CSS v4** with login, chat, document upload, and tool toggle UI

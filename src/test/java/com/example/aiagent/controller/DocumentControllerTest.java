@@ -1,5 +1,6 @@
 package com.example.aiagent.controller;
 
+import com.example.aiagent.config.RagConfig;
 import com.example.aiagent.model.DocumentInfo;
 import com.example.aiagent.service.DocumentIngestionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -9,6 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
@@ -22,10 +25,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class DocumentControllerTest {
 
     @Mock
     private DocumentIngestionService ingestionService;
+
+    @Mock
+    private RagConfig ragConfig;
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
@@ -34,7 +41,8 @@ class DocumentControllerTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
-        DocumentController controller = new DocumentController(ingestionService);
+        when(ragConfig.getTopK()).thenReturn(5);
+        DocumentController controller = new DocumentController(ingestionService, ragConfig);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
@@ -129,7 +137,7 @@ class DocumentControllerTest {
     void testSearch() throws Exception {
         var doc = new org.springframework.ai.document.Document("content text");
         doc.getMetadata().put("filename", "doc.pdf");
-        when(ingestionService.search(eq("query"), eq(3))).thenReturn(List.of(doc));
+        when(ingestionService.search(eq("query"), eq(5))).thenReturn(List.of(doc));
 
         mockMvc.perform(get("/api/documents/search").param("query", "query"))
                 .andExpect(status().isOk())

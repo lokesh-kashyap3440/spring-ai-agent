@@ -8,6 +8,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 
+import java.lang.reflect.Field;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -23,11 +24,11 @@ class KafkaEventPublisherTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        publisher = new KafkaEventPublisher(kafkaTemplate);
-        var eventsField = KafkaEventPublisher.class.getDeclaredField("eventsTopic");
+        publisher = new DefaultKafkaEventPublisher(kafkaTemplate);
+        Field eventsField = DefaultKafkaEventPublisher.class.getDeclaredField("eventsTopic");
         eventsField.setAccessible(true);
         eventsField.set(publisher, "ai-agent-events");
-        var chatField = KafkaEventPublisher.class.getDeclaredField("chatTopic");
+        Field chatField = DefaultKafkaEventPublisher.class.getDeclaredField("chatTopic");
         chatField.setAccessible(true);
         chatField.set(publisher, "ai-agent-chat");
     }

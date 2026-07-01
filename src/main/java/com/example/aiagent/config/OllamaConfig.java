@@ -8,9 +8,10 @@ import org.springframework.context.annotation.Configuration;
 public class OllamaConfig {
 
     private String baseUrl = "http://localhost:11434";
-    private String model = "qwen3.5:4b";
+    private String model = "llama3.2:3b";
     private int timeout = 120;
     private int maxTokens = 2048;
+    private int contextLength = 8192;
 
     public String getBaseUrl() {
         return baseUrl;
@@ -42,5 +43,13 @@ public class OllamaConfig {
 
     public void setMaxTokens(int maxTokens) {
         this.maxTokens = maxTokens;
+    }
+
+    public int getContextLength() {
+        return contextLength;
+    }
+
+    public void setContextLength(int contextLength) {
+        this.contextLength = contextLength;
     }
 }

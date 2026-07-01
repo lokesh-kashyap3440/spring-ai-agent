@@ -21,7 +21,6 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "*")
 public class AgentController {
 
     private static final Logger log = LoggerFactory.getLogger(AgentController.class);

@@ -10,7 +10,6 @@ import com.example.aiagent.tools.Tool;
 import com.example.aiagent.tools.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -19,12 +18,34 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * ReAct (Reasoning + Acting) agent that iteratively reasons about user queries
+ * and invokes tools to gather information before producing a final answer.
+ *
+ * <p>The agent follows this loop for each iteration:</p>
+ * <ol>
+ *   <li>Sends the conversation context to the LLM</li>
+ *   <li>Parses the LLM response for either an Action (tool call) or Final Answer</li>
+ *   <li>If Action: executes the tool and feeds the observation back into the next iteration</li>
+ *   <li>If Final Answer: returns the answer to the caller</li>
+ * </ol>
+ *
+ * <p>Special behaviors:</p>
+ * <ul>
+ *   <li>RAG auto-retry: if the LLM gives a final answer on the first iteration without
+ *       using any tools and RAG search is available, the agent force-calls rag_search</li>
+ *   <li>RAG delegation: when rag_search is called, the agent bypasses the normal loop
+ *       and performs a direct Q&A with the retrieved context</li>
+ *   <li>Tool error handling: if a tool throws an exception, the error is returned as
+ *       an observation rather than crashing the agent loop</li>
+ * </ul>
+ */
 @Component
 public class ReActAgent {
 
     private static final Logger log = LoggerFactory.getLogger(ReActAgent.class);
     private static final Pattern ACTION_PATTERN = Pattern.compile(
-            "Action:\\s*(\\w+)\\s*\\n?\\s*Input:\\s*(.+?)(?=\\n|$)", Pattern.CASE_INSENSITIVE
+            "Action:\\s*(\\w+)\\s*[;|\\n]?\\s*Input:\\s*(.+?)(?=\\n|$)", Pattern.CASE_INSENSITIVE
     );
     private static final Pattern FINISH_PATTERN = Pattern.compile(
             "Final Answer:\\s*(.+)", Pattern.DOTALL | Pattern.CASE_INSENSITIVE
@@ -55,28 +76,21 @@ public class ReActAgent {
         memoryService.saveMessage(sessionId, "user", userMessage);
         kafkaPublisher.publishAgentEvent(sessionId, "user_message", userMessage);
 
-        String ragContext = searchDocuments(userMessage);
-
-        if (!ragContext.contains("No relevant documents found")) {
-            return answerWithRag(userMessage, sessionId, ragContext);
-        }
-
         return answerWithTools(userMessage, sessionId, enabledTools);
     }
 
     private AgentResult answerWithRag(String userMessage, String sessionId, String ragContext) {
         log.info("Using RAG Q&A for session {} (no ReAct loop)", sessionId);
-        String systemPrompt = """
-                You are a helpful document Q&A assistant. Answer the user's question based ONLY on the
-                provided document context. If the context does not contain enough information, say so.
-                Be specific and precise. Use exact numbers from the document when possible.
-                """;
-        String prompt = ragContext + "\n\nQuestion: " + userMessage;
-        String llmResponse = aiService.chat(systemPrompt, prompt);
+
+        String prompt = """
+                Here is the document data:
+                """ + ragContext + "\n\nQuestion: " + userMessage;
+        String llmResponse = aiService.chat("", prompt);
+        log.info("RAG Q&A raw response: [{}]", llmResponse);
         String answer = llmResponse != null ? llmResponse.trim() : "";
 
         if (answer.isBlank() || answer.equals("No response")) {
-            log.warn("RAG Q&A returned empty answer for session {}, raw response: {}", sessionId, llmResponse);
+            log.warn("RAG Q&A returned empty answer for session {}, raw response: [{}]", sessionId, llmResponse);
             answer = "Based on the uploaded documents, I couldn't find enough information to answer that question. Try rephrasing or ask about a different topic.";
         }
 
@@ -98,16 +112,13 @@ public class ReActAgent {
             String prompt = buildIterationPrompt(state, context);
             String llmResponse = aiService.chat(systemPrompt, prompt);
 
-            log.info("LLM response (iteration {}): {}", state.getCurrentIteration(), llmResponse);
+            log.debug("LLM response (iteration {}): {}", state.getCurrentIteration(), llmResponse);
 
-            Matcher finishMatcher = FINISH_PATTERN.matcher(llmResponse);
-            if (finishMatcher.find()) {
-                String finalAnswer = finishMatcher.group(1).trim();
-                state.addThought("Final answer reached");
-                state.setCompleted(true);
-                memoryService.saveMessage(sessionId, "assistant", finalAnswer);
-                kafkaPublisher.publishAgentEvent(sessionId, "final_answer", finalAnswer);
-                return new AgentResult(finalAnswer, toolsUsed);
+            if (llmResponse == null || llmResponse.isBlank() || llmResponse.equals("No response")) {
+                log.warn("Empty LLM response at iteration {}, stopping", state.getCurrentIteration());
+                String fallback = "I could not determine the answer. Please try rephrasing your question.";
+                memoryService.saveMessage(sessionId, "assistant", fallback);
+                return new AgentResult(fallback, toolsUsed);
             }
 
             Matcher actionMatcher = ACTION_PATTERN.matcher(llmResponse);
@@ -121,17 +132,45 @@ public class ReActAgent {
                 Tool tool = toolRegistry.getTool(toolName);
                 String observation;
                 if (tool != null && toolRegistry.isToolEnabled(toolName, enabledTools)) {
-                    observation = tool.execute(toolInput);
+                    try {
+                        observation = tool.execute(toolInput);
+                    } catch (Exception e) {
+                        log.error("Tool '{}' threw exception: {}", toolName, e.getMessage(), e);
+                        observation = "Error executing tool '" + toolName + "': " + e.getMessage();
+                    }
                     toolsUsed.add(toolName);
                 } else if (tool == null) {
                     observation = "Unknown tool: " + toolName + ". Available tools: " + toolRegistry.getToolNames(enabledTools);
                 } else {
                     observation = "Tool '" + toolName + "' is not enabled. Available tools: " + toolRegistry.getToolNames(enabledTools);
                 }
-                state.addObservation(observation);
+
+                if ("rag_search".equals(toolName)) {
+                    return answerWithRag(userMessage, sessionId, observation);
+                }
+
+                String truncatedObs = observation.length() > 2000 ? observation.substring(0, 2000) + "... [truncated]" : observation;
+                state.addObservation(truncatedObs);
                 kafkaPublisher.publishAgentEvent(sessionId, "tool_call",
                         toolName + " -> " + observation.substring(0, Math.min(100, observation.length())));
             } else {
+                Matcher finishMatcher = FINISH_PATTERN.matcher(llmResponse);
+                if (finishMatcher.find()) {
+                    String finalAnswer = finishMatcher.group(1).trim();
+                    // If no tools used and rag_search is available, force a retry
+                    if (toolsUsed.isEmpty() && i == 0 && isRagSearchEnabled(enabledTools)) {
+                        state.addThought("Auto-calling rag_search after premature final answer");
+                        String searchQuery = userMessage.replaceAll("(?i)based on the (uploaded )?document( [a-zA-Z0-9_.-]+)?[,\\s]*", "").trim();
+                        String observation = toolRegistry.getTool("rag_search").execute(searchQuery);
+                        toolsUsed.add("rag_search");
+                        return answerWithRag(userMessage, sessionId, observation);
+                    }
+                    state.addThought("Final answer reached");
+                    state.setCompleted(true);
+                    memoryService.saveMessage(sessionId, "assistant", finalAnswer);
+                    kafkaPublisher.publishAgentEvent(sessionId, "final_answer", finalAnswer);
+                    return new AgentResult(finalAnswer, toolsUsed);
+                }
                 state.addThought(llmResponse);
                 if (i == agentConfig.getMaxIterations() - 1) {
                     String fallbackAnswer = extractAnswer(llmResponse);
@@ -148,6 +187,10 @@ public class ReActAgent {
         return new AgentResult(lastThought, toolsUsed);
     }
 
+    private boolean isRagSearchEnabled(Set<String> enabledTools) {
+        return enabledTools == null || enabledTools.contains("rag_search");
+    }
+
     private String buildSystemPrompt(Set<String> enabledTools) {
         return String.format("""
                 You are a helpful AI agent that uses the ReAct (Reasoning + Acting) pattern.
@@ -155,45 +198,29 @@ public class ReActAgent {
                 You have access to the following tools:
                 %s
                 
-                To use a tool, respond in this exact format:
-                Thought: [your reasoning about what to do]
-                Action: [tool_name]
-                Input: [the input for the tool]
+                TOOL SELECTION GUIDE:
+                - Use "rag_search" ONLY when the user asks about content from uploaded documents (files).
+                - Use "database" ONLY for general technology definitions (Spring Boot, Kafka, etc.).
+                - Use "calculate" for math expressions.
+                - Use "weather" for current weather.
+                - Use "news" for current news.
                 
-                When you have enough information to answer, use:
-                Thought: [your final reasoning]
-                Final Answer: [your answer to the user]
+                CRITICAL OUTPUT RULES:
+                - You must output EXACTLY ONE of these two formats per response.
+                  FORMAT 1 (use a tool): Thought: ... | Action: tool_name | Input: tool_input
+                  FORMAT 2 (final answer): Thought: ... | Final Answer: ...
+                - NEVER output both Action and Final Answer in the same response.
+                - NEVER include Final Answer when you write Action. Only Action+Input.
+                - NEVER simulate tool results. Only output the Action. Wait for the observation.
+                - Always start with a Thought.
                 
-                Rules:
-                - Always start with a Thought
-                - Use one tool at a time. Do NOT simulate tool results.
-                - Wait for the observation before continuing
-                - Give a Final Answer when you have enough information
-                - Be concise and helpful
-                - Think step by step about which tool to use and what information you already have.
+                MANDATORY: If the user's question references uploaded documents, files, or a PDF,
+                you MUST call rag_search first. Do NOT skip this step. Even if you think you know
+                the answer, you must search the documents to provide accurate information.
                 """, toolRegistry.getToolDescriptions(enabledTools));
     }
 
-    private String searchDocuments(String query) {
-        try {
-            var results = ingestionService.search(query, 5);
-            if (results.isEmpty()) {
-                return "No relevant documents found. Answer based on your general knowledge.";
-            }
-            StringBuilder sb = new StringBuilder("=== RELEVANT INFORMATION FROM UPLOADED DOCUMENTS ===\n");
-            for (int i = 0; i < results.size(); i++) {
-                Document doc = results.get(i);
-                String filename = (String) doc.getMetadata().getOrDefault("filename", "unknown");
-                sb.append("--- Section ").append(i + 1).append(" (from: ").append(filename).append(") ---\n");
-                sb.append(doc.getText()).append("\n\n");
-            }
-            sb.append("=== END OF DOCUMENT CONTEXT ===\n");
-            return sb.toString();
-        } catch (Exception e) {
-            log.warn("Auto RAG search failed: {}", e.getMessage());
-            return "No relevant documents found. Answer based on your general knowledge.";
-        }
-    }
+
 
     private String buildContext(String sessionId, String userMessage) {
         String history = memoryService.getFormattedHistory(sessionId);
@@ -205,12 +232,17 @@ public class ReActAgent {
         prompt.append(context).append("\n\n");
 
         if (!state.getThoughtHistory().isEmpty()) {
-            prompt.append("Previous steps:\n");
-            prompt.append(state.getFormattedHistory());
+            prompt.append("Previous steps (last 2):\n");
+            String history = state.getFormattedHistory();
+            String[] lines = history.split("\n");
+            int start = Math.max(0, lines.length - 15);
+            for (int j = start; j < lines.length; j++) {
+                prompt.append(lines[j]).append("\n");
+            }
             prompt.append("\n");
         }
 
-        prompt.append("What should you do next? Respond with exactly ONE Thought and either ONE Action and Input, or a Final Answer. Do not simulate tool results.");
+        prompt.append("What should you do next? Respond with exactly ONE Thought and either ONE Action+Input (to call a tool) OR a Final Answer (to give your answer). Never include both. Do not simulate tool results.");
 
         return prompt.toString();
     }

@@ -1,11 +1,13 @@
 package com.example.aiagent.model;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 
 public class ChatRequest {
 
     @NotBlank(message = "Message cannot be empty")
+    @Size(min = 1, max = 10000, message = "Message must be between 1 and 10000 characters")
     private String message;
 
     private String sessionId;

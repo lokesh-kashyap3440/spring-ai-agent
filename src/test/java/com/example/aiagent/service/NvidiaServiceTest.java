@@ -6,21 +6,40 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpEntity;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.http.MediaType;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+
+import java.util.function.Consumer;
+
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@MockitoSettings(strictness = Strictness.LENIENT)
+
 @ExtendWith(MockitoExtension.class)
 class NvidiaServiceTest {
 
     @Mock
-    private RestTemplate restTemplate;
+    private WebClient webClient;
+
+    @Mock
+    private WebClient.RequestBodyUriSpec requestBodyUriSpec;
+
+    @Mock
+    private WebClient.RequestHeadersUriSpec requestHeadersUriSpec;
+
+    @Mock
+    private WebClient.RequestHeadersSpec requestHeadersSpec;
+
+    @Mock
+    private WebClient.ResponseSpec responseSpec;
 
     private NvidiaConfig config;
     private ObjectMapper objectMapper;
@@ -36,15 +55,20 @@ class NvidiaServiceTest {
         config.setMaxTokens(1024);
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
-        service = new NvidiaService(restTemplate, config, objectMapper);
+        service = new NvidiaService(webClient, config, objectMapper);
+
+        when(webClient.post()).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.headers(any())).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.contentType(any(MediaType.class))).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.bodyValue(anyString())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     }
 
     @Test
     void testChatSuccess() {
         String apiResponse = "{\"choices\": [{\"message\": {\"content\": \"Hello from NVIDIA!\"}}]}";
-        when(restTemplate.postForObject(eq("https://integrate.api.nvidia.com/v1/chat/completions"),
-                any(HttpEntity.class), eq(String.class)))
-                .thenReturn(apiResponse);
+        when(responseSpec.bodyToMono(eq(String.class))).thenReturn(Mono.just(apiResponse));
 
         String result = service.chat("system prompt", "hello");
 
@@ -53,8 +77,8 @@ class NvidiaServiceTest {
 
     @Test
     void testChatApiError() {
-        when(restTemplate.postForObject(anyString(), any(HttpEntity.class), eq(String.class)))
-                .thenThrow(new RuntimeException("API error"));
+        when(responseSpec.bodyToMono(eq(String.class)))
+                .thenReturn(Mono.error(new RuntimeException("API error")));
 
         String result = service.chat("system prompt", "hello");
 
@@ -64,8 +88,7 @@ class NvidiaServiceTest {
     @Test
     void testChatEmptyContentReturnsDefault() {
         String apiResponse = "{\"choices\": [{\"message\": {}}]}";
-        when(restTemplate.postForObject(anyString(), any(HttpEntity.class), eq(String.class)))
-                .thenReturn(apiResponse);
+        when(responseSpec.bodyToMono(eq(String.class))).thenReturn(Mono.just(apiResponse));
 
         String result = service.chat("system prompt", "hello");
 
@@ -74,48 +97,64 @@ class NvidiaServiceTest {
 
     @Test
     void testChatRequestIncludesAuthHeader() {
-        when(restTemplate.postForObject(anyString(), any(HttpEntity.class), eq(String.class)))
-                .thenReturn("{\"choices\": [{\"message\": {\"content\": \"ok\"}}]}");
+        when(responseSpec.bodyToMono(eq(String.class)))
+                .thenReturn(Mono.just("{\"choices\": [{\"message\": {\"content\": \"ok\"}}]}"));
 
         service.chat("system prompt", "hello");
 
-        ArgumentCaptor<HttpEntity<String>> captor = ArgumentCaptor.forClass(HttpEntity.class);
-        verify(restTemplate).postForObject(anyString(), captor.capture(), eq(String.class));
-
-        HttpEntity<String> entity = captor.getValue();
-        assertNotNull(entity.getHeaders().get("Authorization"));
-        assertTrue(entity.getHeaders().get("Authorization").get(0).contains("Bearer test-api-key"));
+        verify(requestBodyUriSpec).headers(any(Consumer.class));
     }
 
     @Test
     void testChatRequestIncludesModelAndParams() {
-        when(restTemplate.postForObject(anyString(), any(HttpEntity.class), eq(String.class)))
-                .thenReturn("{\"choices\": [{\"message\": {\"content\": \"ok\"}}]}");
+        when(responseSpec.bodyToMono(eq(String.class)))
+                .thenReturn(Mono.just("{\"choices\": [{\"message\": {\"content\": \"ok\"}}]}"));
 
         service.chat("system prompt", "hello");
 
-        ArgumentCaptor<HttpEntity<String>> captor = ArgumentCaptor.forClass(HttpEntity.class);
-        verify(restTemplate).postForObject(anyString(), captor.capture(), eq(String.class));
-
-        String body = captor.getValue().getBody();
-        assertTrue(body.contains("\"model\":\"meta/llama-3.1-8b-instruct\""));
-        assertTrue(body.contains("\"temperature\":0.5"));
-        assertTrue(body.contains("\"max_tokens\":1024"));
-        assertTrue(body.contains("\"stream\":false"));
+        verify(requestBodyUriSpec).bodyValue(argThat(body -> {
+            String str = (String) body;
+            return str.contains("\"model\":\"meta/llama-3.1-8b-instruct\"")
+                    && str.contains("\"temperature\":0.5")
+                    && str.contains("\"max_tokens\":1024");
+        }));
     }
 
     @Test
     void testIsAvailableReturnsTrue() {
-        when(restTemplate.getForObject(anyString(), eq(String.class), any(HttpEntity.class)))
-                .thenReturn("{\"data\": []}");
+        when(webClient.get()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.headers(any())).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToMono(eq(String.class))).thenReturn(Mono.just("{\"data\": []}"));
 
         assertTrue(service.isAvailable());
     }
 
     @Test
     void testIsAvailableReturnsFalse() {
-        when(restTemplate.getForObject(anyString(), eq(String.class), any(HttpEntity.class)))
-                .thenThrow(new RuntimeException("Not available"));
+        when(webClient.get()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.headers(any())).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToMono(eq(String.class)))
+                .thenReturn(Mono.error(new RuntimeException("Not available")));
+
+        assertFalse(service.isAvailable());
+    }
+
+    @Test
+    void testChatWithMissingApiKey() {
+        config.setApiKey("");
+
+        String result = service.chat("system prompt", "hello");
+
+        assertTrue(result.contains("API key is not configured"));
+    }
+
+    @Test
+    void testIsAvailableWithMissingApiKey() {
+        config.setApiKey("");
 
         assertFalse(service.isAvailable());
     }

@@ -1,0 +1,15 @@
+target/*
+!target/ai-agent-0.0.1-SNAPSHOT.jar
+.git/
+.gitignore
+*.md
+!ARCHITECTURE.md
+*.yml
+!application.yml
+*.yaml
+*.properties
+.vscode/
+.idea/
+*.iml
+logs/
+*.log

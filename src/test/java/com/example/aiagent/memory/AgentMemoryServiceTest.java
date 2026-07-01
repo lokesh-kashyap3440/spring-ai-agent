@@ -1,5 +1,6 @@
 package com.example.aiagent.memory;
 
+import com.example.aiagent.config.AgentConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,11 +21,15 @@ class AgentMemoryServiceTest {
     @Mock
     private JdbcTemplate jdbc;
 
+    @Mock
+    private AgentConfig agentConfig;
+
     private AgentMemoryService memoryService;
 
     @BeforeEach
     void setUp() {
-        memoryService = new AgentMemoryService(jdbc);
+        when(agentConfig.getMemorySize()).thenReturn(50);
+        memoryService = new AgentMemoryService(jdbc, agentConfig);
     }
 
     @Test

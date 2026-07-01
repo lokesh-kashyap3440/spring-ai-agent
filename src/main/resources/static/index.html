@@ -1,497 +1,278 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Agent Chat</title>
+<title>AI Agent</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex;
-    flex-direction: column; justify-content: center; align-items: center;
-  }
-  .auth-screen {
-    background: #16213e; padding: 40px; border-radius: 16px; width: 360px;
-    border: 1px solid #0f3460;
-  }
-  .auth-screen h1 { color: #e94560; font-size: 24px; margin-bottom: 24px; text-align: center; }
-  .auth-screen .tab-bar { display: flex; margin-bottom: 20px; border-bottom: 1px solid #0f3460; }
-  .auth-screen .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; color: #8899aa; font-size: 14px; }
-  .auth-screen .tab.active { color: #e94560; border-bottom: 2px solid #e94560; }
-  .auth-screen .field { margin-bottom: 16px; }
-  .auth-screen .field label { display: block; font-size: 13px; color: #8899aa; margin-bottom: 6px; }
-  .auth-screen .field input {
-    width: 100%; background: #1a1a2e; border: 1px solid #0f3460; border-radius: 8px;
-    padding: 12px; color: #e0e0e0; font-size: 14px; outline: none;
-  }
-  .auth-screen .field input:focus { border-color: #e94560; }
-  .auth-screen button {
-    width: 100%; background: #e94560; color: #fff; border: none; border-radius: 8px;
-    padding: 12px; font-size: 14px; cursor: pointer; font-weight: 500; margin-top: 8px;
-  }
-  .auth-screen button:hover { background: #d63851; }
-  .auth-screen .error { color: #e94560; font-size: 13px; text-align: center; margin-top: 8px; }
-  .auth-screen .success { color: #4ecca3; font-size: 13px; text-align: center; margin-top: 8px; }
-  .auth-screen .switch-link { text-align: center; margin-top: 16px; font-size: 13px; color: #8899aa; }
-  .auth-screen .switch-link span { color: #e94560; cursor: pointer; }
-  .chat-screen { display: none; width: 100%; height: 100vh; flex-direction: column; }
-  .chat-screen.open { display: flex; }
-  .toolbar {
-    background: #16213e; padding: 12px 20px; display: flex;
-    align-items: center; gap: 16px; flex-wrap: wrap;
-    border-bottom: 1px solid #0f3460;
-  }
-  .toolbar-title { font-size: 18px; font-weight: 600; color: #e94560; white-space: nowrap; }
-  .tool-toggle {
-    display: flex; align-items: center; gap: 6px; cursor: pointer;
-    font-size: 13px; color: #a0a0b8; user-select: none;
-  }
-  .tool-toggle input { accent-color: #e94560; }
-  .tool-toggle.active { color: #e0e0e0; }
-  .chat-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-  .message {
-    max-width: 80%; padding: 12px 16px; border-radius: 12px;
-    line-height: 1.5; font-size: 14px; white-space: pre-wrap; word-break: break-word;
-  }
-  .message.user { background: #e94560; color: #fff; align-self: flex-end; }
-  .message.assistant { background: #16213e; color: #e0e0e0; align-self: flex-start; }
-  .message.system {
-    background: #0f3460; color: #8899aa; align-self: center; font-size: 12px;
-    padding: 6px 14px; border-radius: 20px;
-  }
-  .tools-used { font-size: 11px; color: #e94560; margin-top: 4px; opacity: 0.7; }
-  .typing-indicator {
-    background: #16213e; color: #8899aa; align-self: flex-start; padding: 12px 16px;
-    border-radius: 12px; font-size: 14px;
-  }
-  .input-area {
-    background: #16213e; padding: 12px 20px; display: flex; gap: 10px;
-    border-top: 1px solid #0f3460; align-items: center;
-  }
-  .upload-btn {
-    background: transparent; border: 1px solid #0f3460; border-radius: 8px;
-    color: #a0a0b8; padding: 10px 14px; cursor: pointer; font-size: 13px;
-    transition: all 0.2s; white-space: nowrap;
-  }
-  .upload-btn:hover { border-color: #e94560; color: #e94560; }
-  .upload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .input-area input {
-    flex: 1; background: #1a1a2e; border: 1px solid #0f3460; border-radius: 8px;
-    padding: 12px 16px; color: #e0e0e0; font-size: 14px; outline: none;
-  }
-  .input-area input:focus { border-color: #e94560; }
-  .input-area button {
-    background: #e94560; color: #fff; border: none; border-radius: 8px;
-    padding: 12px 24px; font-size: 14px; cursor: pointer; font-weight: 500;
-    transition: background 0.2s;
-  }
-  .input-area button:hover { background: #d63851; }
-  .input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
-  .scroll-bottom { float: left; clear: both; }
-  .doc-panel {
-    display: none; background: #16213e; border-bottom: 1px solid #0f3460;
-    padding: 12px 20px; max-height: 200px; overflow-y: auto;
-  }
-  .doc-panel.open { display: block; }
-  .doc-panel .doc-item {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 6px 0; border-bottom: 1px solid #0f3460; font-size: 13px;
-  }
-  .doc-panel .doc-item:last-child { border-bottom: none; }
-  .doc-panel .doc-name { color: #e0e0e0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-  .doc-panel .doc-meta { color: #8899aa; font-size: 11px; margin: 0 12px; white-space: nowrap; }
-  .doc-panel .doc-delete {
-    background: transparent; border: 1px solid #e94560; color: #e94560;
-    border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 11px;
-  }
-  .doc-panel .doc-delete:hover { background: #e94560; color: #fff; }
-  .doc-panel .doc-empty { color: #8899aa; font-size: 13px; text-align: center; padding: 12px; }
-  .doc-counter {
-    background: #e94560; color: #fff; border-radius: 10px; padding: 0 6px;
-    font-size: 11px; margin-left: 4px;
-  }
-  .username-badge {
-    font-size: 13px; color: #a0a0b8; margin-right: 8px;
-  }
-  .logout-btn {
-    background: transparent; border: 1px solid #0f3460; border-radius: 6px;
-    color: #8899aa; padding: 6px 12px; cursor: pointer; font-size: 12px;
-  }
-  .logout-btn:hover { border-color: #e94560; color: #e94560; }
+  :root { --color-primary: #e94560; --color-bg: #0f0f1a; --color-surface: #1a1a2e; --color-border: #2a2a4a; }
+  body { background: var(--color-bg); color: #e0e0e0; }
+  .msg-user { background: var(--color-primary); color: #fff; align-self: flex-end; }
+  .msg-assistant { background: var(--color-surface); color: #e0e0e0; border: 1px solid var(--color-border); align-self: flex-start; }
+  .msg-system { background: #16213e; color: #8899aa; align-self: center; font-size: 0.75rem; padding: 4px 14px; border-radius: 999px; }
+  .typing-dot { animation: pulse 1.2s ease-in-out infinite; }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes pulse { 0%, 60%, 100% { opacity: 0.3; } 30% { opacity: 1; } }
+  .fade-in { animation: fadeIn 0.2s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  .scrollbar-thin { scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
+  input:focus, button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
 </style>
 </head>
-<body>
+<body class="h-screen flex flex-col">
+  <!-- Auth Screen -->
+  <div id="auth-screen" class="hidden flex-1 flex items-center justify-center p-4">
+    <div class="w-full max-w-sm bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-8 fade-in">
+      <h1 class="text-2xl font-bold text-center mb-6" style="color:var(--color-primary)">AI Agent</h1>
+      <div class="flex mb-6 border-b border-[var(--color-border)]">
+        <button id="login-tab" class="flex-1 pb-3 text-sm font-medium border-b-2 transition-colors" style="color:var(--color-primary);border-color:var(--color-primary)" onclick="switchAuth('login')">Login</button>
+        <button id="register-tab" class="flex-1 pb-3 text-sm font-medium text-gray-500 border-b-2 border-transparent transition-colors" onclick="switchAuth('register')">Register</button>
+      </div>
+      <div id="login-form">
+        <div class="mb-4">
+          <label class="block text-xs text-gray-400 mb-1.5">Username</label>
+          <input id="login-user" type="text" class="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-4 py-2.5 text-sm focus:outline-none" placeholder="Enter username" autocomplete="username">
+        </div>
+        <div class="mb-4">
+          <label class="block text-xs text-gray-400 mb-1.5">Password</label>
+          <input id="login-pass" type="password" class="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-4 py-2.5 text-sm focus:outline-none" placeholder="Enter password" autocomplete="current-password">
+        </div>
+        <button onclick="login()" class="w-full rounded-lg px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90" style="background:var(--color-primary)">Login</button>
+        <p id="login-err" class="text-xs text-center mt-3" style="color:var(--color-primary);min-height:1.2em"></p>
+      </div>
+      <div id="register-form" class="hidden">
+        <div class="mb-4">
+          <label class="block text-xs text-gray-400 mb-1.5">Username</label>
+          <input id="register-user" type="text" class="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-4 py-2.5 text-sm focus:outline-none" placeholder="Choose a username" autocomplete="username">
+        </div>
+        <div class="mb-4">
+          <label class="block text-xs text-gray-400 mb-1.5">Password</label>
+          <input id="register-pass" type="password" class="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-4 py-2.5 text-sm focus:outline-none" placeholder="Choose a password" autocomplete="new-password">
+        </div>
+        <button onclick="register()" class="w-full rounded-lg px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90" style="background:var(--color-primary)">Register</button>
+        <p id="register-err" class="text-xs text-center mt-3" style="color:var(--color-primary);min-height:1.2em"></p>
+      </div>
+    </div>
+  </div>
 
-<div class="auth-screen" id="auth-screen">
-  <h1>AI Agent</h1>
-  <div class="tab-bar">
-    <div class="tab active" id="login-tab" onclick="switchAuthTab('login')">Login</div>
-    <div class="tab" id="register-tab" onclick="switchAuthTab('register')">Register</div>
-  </div>
+  <!-- Chat Screen -->
+  <div id="chat-screen" class="hidden flex flex-col h-screen">
+    <!-- Toolbar -->
+    <div class="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] shrink-0 flex-wrap">
+      <span class="text-lg font-bold shrink-0" style="color:var(--color-primary)">AI Agent</span>
+      <div id="tool-toggles" class="flex items-center gap-2 flex-wrap text-xs"></div>
+      <div class="ml-auto flex items-center gap-3 shrink-0">
+        <span id="username-badge" class="text-xs text-gray-400 hidden"></span>
+        <button onclick="toggleDocs()" class="text-xs text-gray-400 hover:text-white transition-colors cursor-pointer bg-transparent border-0">
+          Docs <span id="doc-count" class="inline-flex items-center justify-center rounded-full px-1.5 text-xs font-medium ml-0.5 align-middle" style="background:var(--color-primary);color:#fff;min-width:18px;height:18px">0</span>
+        </button>
+        <button onclick="logout()" class="text-xs text-gray-400 hover:text-white transition-colors cursor-pointer bg-transparent border-0">Logout</button>
+      </div>
+    </div>
 
-  <div id="login-form">
-    <div class="field">
-      <label>Username</label>
-      <input type="text" id="login-username" placeholder="Enter username" autocomplete="username">
+    <!-- Docs Panel -->
+    <div id="doc-panel" class="hidden border-b border-[var(--color-border)] bg-[var(--color-surface)] max-h-48 overflow-y-auto scrollbar-thin fade-in">
+      <div class="p-3 text-xs text-gray-400" id="doc-list"></div>
     </div>
-    <div class="field">
-      <label>Password</label>
-      <input type="password" id="login-password" placeholder="Enter password" autocomplete="current-password">
-    </div>
-    <button onclick="login()">Login</button>
-    <div class="error" id="login-error"></div>
-  </div>
 
-  <div id="register-form" style="display:none">
-    <div class="field">
-      <label>Username</label>
-      <input type="text" id="register-username" placeholder="Choose a username" autocomplete="username">
+    <!-- Messages -->
+    <div id="chat-container" class="flex-1 overflow-y-auto px-4 py-4 space-y-3 scrollbar-thin">
+      <div class="msg-system">Connected. Toggle tools above and start chatting.</div>
     </div>
-    <div class="field">
-      <label>Password</label>
-      <input type="password" id="register-password" placeholder="Choose a password" autocomplete="new-password">
-    </div>
-    <button onclick="register()">Register</button>
-    <div class="error" id="register-error"></div>
-    <div class="success" id="register-success"></div>
-    <div class="switch-link">Already have an account? <span onclick="switchAuthTab('login')">Login</span></div>
-  </div>
-</div>
 
-<div class="chat-screen" id="chat-screen">
-  <div class="toolbar">
-    <span class="toolbar-title">AI Agent</span>
-    <div id="tool-toggles"></div>
-    <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
-      <span class="username-badge" id="username-badge"></span>
-      <span style="font-size:13px;color:#8899aa;cursor:pointer" onclick="toggleDocPanel()">Docs <span id="doc-counter" class="doc-counter">0</span></span>
-      <button class="logout-btn" onclick="logout()">Logout</button>
+    <!-- Input Area -->
+    <div class="flex items-center gap-2 px-4 py-3 border-t border-[var(--color-border)] bg-[var(--color-surface)] shrink-0">
+      <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md,.html" class="hidden" onchange="uploadDoc(this)">
+      <button onclick="document.getElementById('file-input').click()" id="upload-btn" class="shrink-0 rounded-lg px-3 py-2.5 text-xs font-medium border border-[var(--color-border)] text-gray-400 hover:text-white hover:border-gray-500 transition-colors cursor-pointer bg-transparent">+ Upload</button>
+      <input id="msg-input" type="text" class="flex-1 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-4 py-2.5 text-sm focus:outline-none" placeholder="Type your message..." autofocus>
+      <button id="send-btn" onclick="sendMsg()" class="shrink-0 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 cursor-pointer border-0" style="background:var(--color-primary)">Send</button>
     </div>
   </div>
-  <div class="doc-panel" id="doc-panel"></div>
-  <div class="chat-container" id="chat-container">
-    <div class="message system">Connected. Select tools above and start chatting.</div>
-    <div class="scroll-bottom"></div>
-  </div>
-  <div class="input-area">
-    <button class="upload-btn" id="upload-btn" onclick="document.getElementById('file-input').click()">+ Upload Doc</button>
-    <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md,.html" style="display:none" onchange="uploadDocument(this)">
-    <input type="text" id="message-input" placeholder="Type your message..." autofocus>
-    <button id="send-btn" onclick="sendMessage()">Send</button>
-  </div>
-</div>
 
 <script>
-const API_BASE = '/api';
+const API = '/api';
 let sessionId = crypto.randomUUID();
 
-function getToken() { return localStorage.getItem('jwt_token'); }
-function getUsername() { return localStorage.getItem('username'); }
+function t() { return localStorage.getItem('jwt'); }
+function u() { return localStorage.getItem('user'); }
 
-function authFetch(url, options = {}) {
-  const token = getToken();
-  if (token) {
-    options.headers = { ...options.headers, 'Authorization': 'Bearer ' + token };
-  }
-  return fetch(url, options).then(res => {
-    if (res.status === 401) {
-      localStorage.removeItem('jwt_token');
-      localStorage.removeItem('username');
-      showAuthScreen();
-      throw new Error('Session expired. Please login again.');
-    }
-    return res;
-  });
+function af(url, opts = {}) {
+  const token = t();
+  if (token) opts.headers = { ...opts.headers, Authorization: 'Bearer ' + token };
+  return fetch(url, opts).then(r => { if (r.status === 401) { logout(); throw new Error('Session expired'); } return r; });
 }
 
-function showAuthScreen() {
-  document.getElementById('auth-screen').style.display = 'block';
-  document.getElementById('chat-screen').classList.remove('open');
-  document.getElementById('chat-container').innerHTML = '<div class="message system">Connected. Select tools above and start chatting.</div><div class="scroll-bottom"></div>';
-  document.getElementById('login-error').textContent = '';
-  document.getElementById('register-error').textContent = '';
-  document.getElementById('register-success').textContent = '';
-}
-
-function showChatScreen() {
-  document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('chat-screen').classList.add('open');
-  document.getElementById('username-badge').textContent = getUsername() || '';
-  loadTools();
-  loadDocuments();
-}
-
-function switchAuthTab(tab) {
-  document.getElementById('login-tab').classList.toggle('active', tab === 'login');
-  document.getElementById('register-tab').classList.toggle('active', tab === 'register');
-  document.getElementById('login-form').style.display = tab === 'login' ? 'block' : 'none';
-  document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
-  document.getElementById('login-error').textContent = '';
-  document.getElementById('register-error').textContent = '';
-  document.getElementById('register-success').textContent = '';
+// Auth
+function switchAuth(tab) {
+  document.getElementById('login-tab').className = 'flex-1 pb-3 text-sm font-medium border-b-2 transition-colors ' + (tab === 'login' ? '' : 'text-gray-500 border-transparent');
+  document.getElementById('register-tab').className = 'flex-1 pb-3 text-sm font-medium border-b-2 transition-colors ' + (tab === 'register' ? '' : 'text-gray-500 border-transparent');
+  if (tab === 'login') { document.getElementById('login-tab').style.color = 'var(--color-primary)'; document.getElementById('login-tab').style.borderColor = 'var(--color-primary)'; }
+  if (tab === 'register') { document.getElementById('register-tab').style.color = 'var(--color-primary)'; document.getElementById('register-tab').style.borderColor = 'var(--color-primary)'; }
+  document.getElementById('login-form').classList.toggle('hidden', tab !== 'login');
+  document.getElementById('register-form').classList.toggle('hidden', tab !== 'register');
+  document.getElementById('login-err').textContent = '';
+  document.getElementById('register-err').textContent = '';
 }
 
 async function login() {
-  const username = document.getElementById('login-username').value.trim();
-  const password = document.getElementById('login-password').value;
-  const errorEl = document.getElementById('login-error');
-  errorEl.textContent = '';
-
-  if (!username || !password) { errorEl.textContent = 'Please fill in all fields'; return; }
-
+  const u = document.getElementById('login-user').value.trim(), p = document.getElementById('login-pass').value;
+  const er = document.getElementById('login-err'); er.textContent = '';
+  if (!u || !p) { er.textContent = 'Fill in all fields'; return; }
   try {
-    const res = await fetch(API_BASE + '/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    const data = await res.json();
-    if (!res.ok) { errorEl.textContent = data.error || 'Login failed'; return; }
-    localStorage.setItem('jwt_token', data.token);
-    localStorage.setItem('username', data.username);
-    sessionId = crypto.randomUUID();
-    showChatScreen();
-  } catch (err) {
-    errorEl.textContent = 'Connection error: ' + err.message;
-  }
+    const r = await fetch(API + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+    const d = await r.json();
+    if (!r.ok) { er.textContent = d.error || 'Login failed'; return; }
+    localStorage.setItem('jwt', d.token); localStorage.setItem('user', d.username);
+    sessionId = crypto.randomUUID(); enterChat();
+  } catch (e) { er.textContent = 'Connection error'; }
 }
 
 async function register() {
-  const username = document.getElementById('register-username').value.trim();
-  const password = document.getElementById('register-password').value;
-  const errorEl = document.getElementById('register-error');
-  const successEl = document.getElementById('register-success');
-  errorEl.textContent = '';
-  successEl.textContent = '';
-
-  if (!username || !password) { errorEl.textContent = 'Please fill in all fields'; return; }
-
+  const u = document.getElementById('register-user').value.trim(), p = document.getElementById('register-pass').value;
+  const er = document.getElementById('register-err'); er.textContent = '';
+  if (!u || !p) { er.textContent = 'Fill in all fields'; return; }
   try {
-    const res = await fetch(API_BASE + '/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    const data = await res.json();
-    if (!res.ok) { errorEl.textContent = data.error || 'Registration failed'; return; }
-    localStorage.setItem('jwt_token', data.token);
-    localStorage.setItem('username', data.username);
-    sessionId = crypto.randomUUID();
-    showChatScreen();
-  } catch (err) {
-    errorEl.textContent = 'Connection error: ' + err.message;
-  }
+    const r = await fetch(API + '/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+    const d = await r.json();
+    if (!r.ok) { er.textContent = d.error || 'Registration failed'; return; }
+    localStorage.setItem('jwt', d.token); localStorage.setItem('user', d.username);
+    sessionId = crypto.randomUUID(); enterChat();
+  } catch (e) { er.textContent = 'Connection error'; }
 }
 
 function logout() {
-  localStorage.removeItem('jwt_token');
-  localStorage.removeItem('username');
-  showAuthScreen();
+  localStorage.removeItem('jwt'); localStorage.removeItem('user');
+  document.getElementById('auth-screen').classList.remove('hidden');
+  document.getElementById('chat-screen').classList.add('hidden');
 }
 
-document.getElementById('login-password').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') login();
-});
-document.getElementById('register-password').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') register();
-});
-
-if (getToken()) {
-  showChatScreen();
-} else {
-  document.getElementById('auth-screen').style.display = 'block';
+// Enter chat
+async function enterChat() {
+  document.getElementById('auth-screen').classList.add('hidden');
+  document.getElementById('chat-screen').classList.remove('hidden');
+  document.getElementById('username-badge').textContent = u() || '';
+  document.getElementById('username-badge').classList.remove('hidden');
+  await loadTools(); await loadDocs();
 }
 
+// Tools
 async function loadTools() {
   try {
-    const res = await authFetch(API_BASE + '/agent/tools');
-    const tools = await res.json();
-    const container = document.getElementById('tool-toggles');
-    container.innerHTML = '';
+    const r = await af(API + '/agent/tools'); const tools = await r.json();
+    const c = document.getElementById('tool-toggles'); c.innerHTML = '';
     for (const [name, desc] of Object.entries(tools)) {
-      const label = document.createElement('label');
-      label.className = 'tool-toggle active';
-      label.title = desc;
-      label.innerHTML = `<input type="checkbox" checked data-tool="${name}">${name}`;
-      label.querySelector('input').addEventListener('change', function() {
-        label.classList.toggle('active', this.checked);
-      });
-      container.appendChild(label);
+      const l = document.createElement('label');
+      l.className = 'flex items-center gap-1 text-gray-400 cursor-pointer select-none text-xs';
+      l.title = desc;
+      l.innerHTML = '<input type="checkbox" checked data-tool="' + name + '" class="accent-pink-500 w-3 h-3">' + name;
+      l.querySelector('input').addEventListener('change', function() { l.classList.toggle('text-white', this.checked); l.classList.toggle('text-gray-400', !this.checked); });
+      c.appendChild(l);
     }
-  } catch (err) {
-    console.error('Failed to load tools', err);
+  } catch (e) { console.error('tools', e); }
+}
+
+function selectedTools() {
+  const cbs = document.querySelectorAll('#tool-toggles input[type="checkbox"]');
+  const s = [];
+  for (const cb of cbs) if (cb.checked) s.push(cb.dataset.tool);
+  return s;
+}
+
+// Messages
+function addMsg(role, content, toolsUsed) {
+  const c = document.getElementById('chat-container');
+  const d = document.createElement('div');
+  d.className = 'msg-' + role + ' max-w-[80%] rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words fade-in';
+  d.textContent = content;
+  if (toolsUsed && toolsUsed.length) {
+    const t = document.createElement('div');
+    t.className = 'text-[10px] mt-1.5 opacity-60';
+    t.style.color = role === 'user' ? '#fff' : 'var(--color-primary)';
+    t.textContent = 'tools: ' + toolsUsed.join(', ');
+    d.appendChild(t);
   }
+  c.appendChild(d);
+  c.scrollTop = c.scrollHeight;
 }
 
-function getSelectedTools() {
-  const checkboxes = document.querySelectorAll('#tool-toggles input[type="checkbox"]');
-  const selected = [];
-  for (const cb of checkboxes) {
-    if (cb.checked) selected.push(cb.dataset.tool);
-  }
-  return selected;
+function typing(on) {
+  const c = document.getElementById('chat-container');
+  const existing = document.getElementById('typing');
+  if (existing) existing.remove();
+  if (!on) return;
+  const d = document.createElement('div');
+  d.id = 'typing';
+  d.className = 'msg-assistant flex items-center gap-1.5 px-4 py-3 text-sm';
+  d.innerHTML = '<span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span>';
+  c.appendChild(d);
+  c.scrollTop = c.scrollHeight;
 }
 
-function addMessage(role, content, toolsUsed) {
-  const container = document.getElementById('chat-container');
-  const div = document.createElement('div');
-  div.className = `message ${role}`;
-  div.textContent = content;
-  if (toolsUsed && toolsUsed.length > 0) {
-    const toolsDiv = document.createElement('div');
-    toolsDiv.className = 'tools-used';
-    toolsDiv.textContent = 'tools: ' + toolsUsed.join(', ');
-    div.appendChild(toolsDiv);
-  }
-  container.insertBefore(div, container.lastElementChild);
-  container.scrollTop = container.scrollHeight;
-}
-
-function addTypingIndicator() {
-  const container = document.getElementById('chat-container');
-  const div = document.createElement('div');
-  div.className = 'typing-indicator';
-  div.id = 'typing-indicator';
-  div.textContent = 'Thinking...';
-  container.insertBefore(div, container.lastElementChild);
-  container.scrollTop = container.scrollHeight;
-}
-
-function removeTypingIndicator() {
-  const el = document.getElementById('typing-indicator');
-  if (el) el.remove();
-}
-
-async function sendMessage() {
-  const input = document.getElementById('message-input');
-  const message = input.value.trim();
-  if (!message) return;
-
-  if (!getToken()) { showAuthScreen(); return; }
-
-  input.value = '';
+async function sendMsg() {
+  const inp = document.getElementById('msg-input');
+  const msg = inp.value.trim();
+  if (!msg || !t()) return;
+  inp.value = '';
   document.getElementById('send-btn').disabled = true;
-
-  addMessage('user', message);
-
-  const selectedTools = getSelectedTools();
-  addTypingIndicator();
-
+  addMsg('user', msg);
+  typing(true);
   try {
-    const res = await authFetch(API_BASE + '/agent/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: message,
-        sessionId: sessionId,
-        toolsEnabled: selectedTools.length > 0 ? selectedTools : null
-      })
+    const r = await af(API + '/agent/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, sessionId, toolsEnabled: selectedTools() })
     });
-    const data = await res.json();
-    removeTypingIndicator();
-    addMessage('assistant', data.answer, data.toolsUsed);
-  } catch (err) {
-    removeTypingIndicator();
-    if (err.message.includes('Session expired')) return;
-    addMessage('system', 'Error: ' + err.message);
-  } finally {
-    document.getElementById('send-btn').disabled = false;
-    document.getElementById('message-input').focus();
-  }
+    const d = await r.json();
+    typing(false);
+    addMsg('assistant', d.answer, d.toolsUsed);
+  } catch (e) { typing(false); addMsg('system', 'Error: ' + e.message); }
+  finally { document.getElementById('send-btn').disabled = false; inp.focus(); }
 }
 
-document.getElementById('message-input').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
-  }
-});
+document.getElementById('msg-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } });
+['login-pass','register-pass'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); id === 'login-pass' ? login() : register(); } }));
 
-async function uploadDocument(input) {
-  const file = input.files[0];
-  if (!file) return;
-  if (!getToken()) { showAuthScreen(); return; }
-
-  const btn = document.getElementById('upload-btn');
-  btn.disabled = true;
-  btn.textContent = 'Uploading...';
-
-  const formData = new FormData();
-  formData.append('file', file);
-
+// Docs
+async function loadDocs() {
+  if (!t()) return;
   try {
-    const res = await authFetch(API_BASE + '/documents/upload', {
-      method: 'POST',
-      body: formData
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      addMessage('system', 'Upload failed: ' + (err.error || res.statusText));
-    } else {
-      const data = await res.json();
-      addMessage('system', 'Uploaded: ' + data.document.filename + ' (' + data.document.chunks + ' chunks)');
-    }
-  } catch (err) {
-    if (err.message.includes('Session expired')) return;
-    addMessage('system', 'Upload error: ' + err.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '+ Upload Doc';
-    input.value = '';
-    loadDocuments();
-  }
-}
-
-async function loadDocuments() {
-  if (!getToken()) return;
-  try {
-    const res = await authFetch(API_BASE + '/documents');
-    const docs = await res.json();
-    const counter = document.getElementById('doc-counter');
-    counter.textContent = docs.length;
-    const panel = document.getElementById('doc-panel');
-    if (docs.length === 0) {
-      panel.innerHTML = '<div class="doc-empty">No documents uploaded yet. Use the + button to upload.</div>';
-      return;
-    }
-    panel.innerHTML = docs.map(doc => {
-      const size = doc.size >= 1024 * 1024
-        ? (doc.size / (1024 * 1024)).toFixed(1) + ' MB'
-        : (doc.size / 1024).toFixed(1) + ' KB';
-      const date = new Date(doc.uploadedAt).toLocaleDateString();
-      return '<div class="doc-item">'
-        + '<span class="doc-name" title="' + doc.filename + '">' + doc.filename + '</span>'
-        + '<span class="doc-meta">' + size + ' | ' + doc.chunks + ' chunks | ' + date + '</span>'
-        + '<button class="doc-delete" onclick="deleteDocument(\'' + doc.id + '\',\'' + doc.filename.replace(/'/g, "\\'") + '\')">Delete</button>'
-        + '</div>';
+    const r = await af(API + '/documents'); const docs = await r.json();
+    document.getElementById('doc-count').textContent = docs.length;
+    const list = document.getElementById('doc-list');
+    if (!docs.length) { list.innerHTML = '<div class="text-gray-500 text-center py-2">No documents uploaded.</div>'; return; }
+    list.innerHTML = docs.map(d => {
+      const sz = d.size >= 1048576 ? (d.size / 1048576).toFixed(1) + ' MB' : (d.size / 1024).toFixed(1) + ' KB';
+      return '<div class="flex items-center gap-2 py-1.5 border-b border-[var(--color-border)] last:border-0">' +
+        '<span class="flex-1 truncate text-gray-300" title="' + d.filename + '">' + d.filename + '</span>' +
+        '<span class="text-gray-500 shrink-0">' + sz + ' · ' + d.chunks + ' chunks</span>' +
+        '<button onclick="delDoc(\'' + d.id + '\')" class="text-xs text-gray-500 hover:text-red-400 transition-colors cursor-pointer bg-transparent border-0 shrink-0">✕</button></div>';
     }).join('');
-  } catch (err) {
-    console.error('Failed to load documents', err);
-  }
+  } catch (e) { console.error('docs', e); }
 }
 
-function toggleDocPanel() {
-  const panel = document.getElementById('doc-panel');
-  panel.classList.toggle('open');
-  if (panel.classList.contains('open')) {
-    loadDocuments();
-  }
-}
+let docPanelOpen = false;
+function toggleDocs() { docPanelOpen = !docPanelOpen; document.getElementById('doc-panel').classList.toggle('hidden', !docPanelOpen); if (docPanelOpen) loadDocs(); }
 
-async function deleteDocument(docId, filename) {
-  if (!confirm('Delete "' + filename + '"?')) return;
+async function uploadDoc(inp) {
+  const f = inp.files[0]; if (!f || !t()) return;
+  const btn = document.getElementById('upload-btn'); btn.disabled = true; btn.textContent = '...';
+  const fd = new FormData(); fd.append('file', f);
   try {
-    const res = await authFetch(API_BASE + '/documents/' + docId, { method: 'DELETE' });
-    if (res.ok) {
-      addMessage('system', 'Deleted: ' + filename);
-      loadDocuments();
-    }
-  } catch (err) {
-    if (err.message.includes('Session expired')) return;
-    addMessage('system', 'Delete error: ' + err.message);
-  }
+    const r = await af(API + '/documents/upload', { method: 'POST', body: fd });
+    if (!r.ok) { const e = await r.json(); addMsg('system', 'Upload failed: ' + (e.error || '')); }
+    else { const d = await r.json(); addMsg('system', 'Uploaded: ' + d.document.filename + ' (' + d.document.chunks + ' chunks)'); }
+  } catch (e) { addMsg('system', 'Upload error: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '+ Upload'; inp.value = ''; loadDocs(); }
 }
+
+async function delDoc(id) {
+  try { const r = await af(API + '/documents/' + id, { method: 'DELETE' }); if (r.ok) { addMsg('system', 'Document deleted'); loadDocs(); } }
+  catch (e) { addMsg('system', 'Delete error'); }
+}
+
+// Init
+if (t()) { enterChat(); } else { document.getElementById('auth-screen').classList.remove('hidden'); }
 </script>
 </body>
 </html>

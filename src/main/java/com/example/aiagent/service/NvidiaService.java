@@ -8,11 +8,13 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+
+import java.time.Duration;
 
 @Service
 @ConditionalOnProperty(name = "app.ai.provider", havingValue = "nvidia", matchIfMissing = true)
@@ -20,12 +22,12 @@ public class NvidiaService implements AiService {
 
     private static final Logger log = LoggerFactory.getLogger(NvidiaService.class);
 
-    private final RestTemplate restTemplate;
+    private final WebClient webClient;
     private final NvidiaConfig config;
     private final ObjectMapper objectMapper;
 
-    public NvidiaService(RestTemplate restTemplate, NvidiaConfig config, ObjectMapper objectMapper) {
-        this.restTemplate = restTemplate;
+    public NvidiaService(WebClient webClient, NvidiaConfig config, ObjectMapper objectMapper) {
+        this.webClient = webClient;
         this.config = config;
         this.objectMapper = objectMapper;
     }
@@ -40,14 +42,23 @@ public class NvidiaService implements AiService {
         try {
             String requestBody = buildChatRequest(systemPrompt, userMessage);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(apiKey);
+            String response = webClient.post()
+                    .uri(config.getBaseUrl() + "/chat/completions")
+                    .headers(h -> h.setBearerAuth(apiKey))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(config.getTimeout()))
+                    .onErrorResume(e -> {
+                        log.error("NVIDIA API error: {}", e.getMessage());
+                        return Mono.just("{\"choices\":[{\"message\":{\"content\":\"Error communicating with NVIDIA API: " + e.getMessage() + "\"}}]}");
+                    })
+                    .block();
 
-            HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
-
-            String url = config.getBaseUrl() + "/chat/completions";
-            String response = restTemplate.postForObject(url, entity, String.class);
+            if (response == null) {
+                return "No response";
+            }
 
             JsonNode responseJson = objectMapper.readTree(response);
             JsonNode choice = responseJson.path("choices").path(0);
@@ -66,10 +77,13 @@ public class NvidiaService implements AiService {
             return false;
         }
         try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setBearerAuth(apiKey);
-            HttpEntity<String> entity = new HttpEntity<>(headers);
-            restTemplate.getForObject(config.getBaseUrl() + "/models", String.class, entity);
+            webClient.get()
+                    .uri(config.getBaseUrl() + "/models")
+                    .headers(h -> h.setBearerAuth(apiKey))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(5))
+                    .block();
             return true;
         } catch (Exception e) {
             log.warn("NVIDIA API is not available: {}", e.getMessage());

@@ -85,26 +85,30 @@ logging:
 
 app:
   ai:
-    provider: ${AI_PROVIDER:nvidia}
+    provider: ${AI_PROVIDER:ollama}
 
   ollama:
     base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
-    model: ${OLLAMA_MODEL:qwen3.5:4b}
-    timeout: ${OLLAMA_TIMEOUT:120}
+    model: ${OLLAMA_MODEL:llama3.2:3b}
+    timeout: ${OLLAMA_TIMEOUT:180}
     max-tokens: ${OLLAMA_MAX_TOKENS:2048}
+    context-length: ${OLLAMA_CONTEXT_LENGTH:4096}
     temperature: ${OLLAMA_TEMPERATURE:0.7}
 
   nvidia:
-    api-key: ${NVIDIA_API_KEY:}
+    api-key: ${NVIDIA_API_KEY}
     model: ${NVIDIA_MODEL:stepfun-ai/step-3.5-flash}
     base-url: ${NVIDIA_BASE_URL:https://integrate.api.nvidia.com/v1}
-    timeout: ${NVIDIA_TIMEOUT:60}
+    timeout: ${NVIDIA_TIMEOUT:120}
     max-tokens: ${NVIDIA_MAX_TOKENS:16000}
     temperature: ${NVIDIA_TEMPERATURE:0.7}
   agent:
     max-iterations: ${AGENT_MAX_ITERATIONS:6}
     memory-size: ${AGENT_MEMORY_SIZE:20}
     verbose: ${AGENT_VERBOSE:false}
+  rag:
+    top-k: ${RAG_TOP_K:5}
+    similarity-threshold: ${RAG_SIMILARITY_THRESHOLD:0.5}
   kafka:
     topics:
       events: ${KAFKA_TOPIC_EVENTS:ai-agent-events}
@@ -114,5 +118,5 @@ app:
       name: ${MCP_SERVER_NAME:ai-agent-tools}
       version: ${MCP_SERVER_VERSION:1.0.0}
   jwt:
-    secret: ${JWT_SECRET:ai-agent-secret-key-change-in-production-min-32-chars!!}
+    secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}

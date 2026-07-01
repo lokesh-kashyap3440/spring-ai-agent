@@ -1,5 +1,6 @@
 package com.example.aiagent.service;
 
+import com.example.aiagent.config.RagConfig;
 import com.example.aiagent.model.DocumentInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +11,7 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -19,17 +21,27 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Handles document ingestion, storage, and retrieval for the RAG pipeline.
+ *
+ * <p>The ingestion pipeline: Tika parsing &rarr; token text splitting &rarr;
+ * embedding via configured model &rarr; storage in PgVectorStore &rarr; metadata
+ * persisted to PostgreSQL.</p>
+ *
+ * <p>Search uses cosine similarity against the vector store with a configurable
+ * top-K and similarity threshold from {@link RagConfig}.</p>
+ */
 @Service
 public class DocumentIngestionService {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentIngestionService.class);
-    private static final int DEFAULT_TOP_K = 3;
 
     private final VectorStore vectorStore;
     private final TokenTextSplitter textSplitter;
     private final JdbcTemplate jdbc;
+    private final RagConfig ragConfig;
 
-    public DocumentIngestionService(VectorStore vectorStore, JdbcTemplate jdbc) {
+    public DocumentIngestionService(VectorStore vectorStore, JdbcTemplate jdbc, RagConfig ragConfig) {
         this.vectorStore = vectorStore;
         this.textSplitter = TokenTextSplitter.builder()
                 .withChunkSize(500)
@@ -39,8 +51,10 @@ public class DocumentIngestionService {
                 .withKeepSeparator(true)
                 .build();
         this.jdbc = jdbc;
+        this.ragConfig = ragConfig;
     }
 
+    @Transactional
     public DocumentInfo ingest(MultipartFile file) throws IOException {
         String docId = UUID.randomUUID().toString();
         String filename = file.getOriginalFilename();
@@ -77,13 +91,51 @@ public class DocumentIngestionService {
     }
 
     public List<Document> search(String query, int topK) {
-        return vectorStore.similaritySearch(
-                SearchRequest.builder().query(query).topK(topK).similarityThreshold(0.5).build()
+        try {
+            return vectorStore.similaritySearch(
+                    SearchRequest.builder()
+                            .query(query)
+                            .topK(topK)
+                            .similarityThreshold(ragConfig.getSimilarityThreshold())
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("Vector search failed for query '{}': {}", query, e.getMessage());
+            return List.of();
+        }
+    }
+
+    public long countEntries(String deityName) {
+        List<Document> results = vectorStore.similaritySearch(
+                SearchRequest.builder()
+                        .query(deityName + " temple")
+                        .topK(500)
+                        .similarityThreshold(0.0)
+                        .build()
         );
+
+        long count = 0;
+        for (Document doc : results) {
+            String text = doc.getText();
+            for (String line : text.split("\n")) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                String[] parts = line.split("\\s+");
+                if (parts.length >= 4) {
+                    String templeName = (parts[0] + " " + parts[1]).toLowerCase();
+                    String deity = parts[2].toLowerCase();
+                    String search = deityName.toLowerCase();
+                    if (templeName.equals(search + " temple") || deity.equals(search)) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
     }
 
     public List<Document> search(String query) {
-        return search(query, DEFAULT_TOP_K);
+        return search(query, ragConfig.getTopK());
     }
 
     public List<DocumentInfo> listDocuments() {
@@ -96,7 +148,9 @@ public class DocumentIngestionService {
     public boolean deleteDocument(String docId) {
         int updated = jdbc.update("DELETE FROM document_metadata WHERE doc_id = ?", docId);
         if (updated > 0) {
-            log.info("Document {} removed from index", docId);
+            log.info("Document {} removed from metadata index", docId);
+            log.warn("Vector store chunks for docId={} are not cleaned up automatically. "
+                    + "A future improvement should track vector document IDs for proper deletion.", docId);
         }
         return updated > 0;
     }

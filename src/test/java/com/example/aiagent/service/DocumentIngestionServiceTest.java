@@ -1,5 +1,6 @@
 package com.example.aiagent.service;
 
+import com.example.aiagent.config.RagConfig;
 import com.example.aiagent.model.DocumentInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,13 +34,16 @@ class DocumentIngestionServiceTest {
     private JdbcTemplate jdbc;
 
     @Mock
+    private RagConfig ragConfig;
+
+    @Mock
     private MultipartFile file;
 
     private DocumentIngestionService service;
 
     @BeforeEach
     void setUp() {
-        service = new DocumentIngestionService(vectorStore, jdbc);
+        service = new DocumentIngestionService(vectorStore, jdbc, ragConfig);
     }
 
     @Test
@@ -88,6 +92,8 @@ class DocumentIngestionServiceTest {
 
     @Test
     void testSearchWithoutTopK() {
+        when(ragConfig.getTopK()).thenReturn(3);
+        when(ragConfig.getSimilarityThreshold()).thenReturn(0.5);
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(List.of(new Document("result")));
         List<Document> results = service.search("test query");
@@ -97,6 +103,7 @@ class DocumentIngestionServiceTest {
 
     @Test
     void testSearchWithTopK() {
+        when(ragConfig.getSimilarityThreshold()).thenReturn(0.5);
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(List.of(new Document("a"), new Document("b")));
         List<Document> results = service.search("test", 2);
@@ -105,6 +112,8 @@ class DocumentIngestionServiceTest {
 
     @Test
     void testSearchReturnsEmpty() {
+        when(ragConfig.getTopK()).thenReturn(3);
+        when(ragConfig.getSimilarityThreshold()).thenReturn(0.5);
         when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(List.of());
         List<Document> results = service.search("nothing");

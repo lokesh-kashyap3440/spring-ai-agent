@@ -6,7 +6,11 @@ import org.springframework.web.client.RestTemplate;
 @Component
 public class NewsTool implements Tool {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+
+    public NewsTool(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
 
     @Override
     public String getName() {

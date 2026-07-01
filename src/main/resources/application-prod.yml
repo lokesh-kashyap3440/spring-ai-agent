@@ -7,14 +7,7 @@ spring:
     ollama:
       base-url: ${OLLAMA_BASE_URL}
       embedding:
-        model: ${OLLAMA_EMBEDDING_MODEL}
-
-  data:
-    redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
-      timeout: ${REDIS_TIMEOUT:2s}
+        model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text}
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
@@ -44,9 +37,9 @@ management:
         enabled: true
       group:
         readiness:
-          include: redis,kafka
+          include: jdbc,kafka
         liveness:
-          include: redis
+          include: jdbc
   metrics:
     export:
       prometheus:
@@ -72,9 +65,10 @@ logging:
 
 app:
   ollama:
-    model: ${OLLAMA_MODEL}
-    timeout: ${OLLAMA_TIMEOUT:120}
+    model: ${OLLAMA_MODEL:llama3.2:3b}
+    timeout: ${OLLAMA_TIMEOUT:180}
     max-tokens: ${OLLAMA_MAX_TOKENS:2048}
+    context-length: ${OLLAMA_CONTEXT_LENGTH:4096}
     temperature: ${OLLAMA_TEMPERATURE:0.7}
   agent:
     max-iterations: ${AGENT_MAX_ITERATIONS:10}
