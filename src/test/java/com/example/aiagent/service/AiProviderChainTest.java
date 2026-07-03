@@ -7,7 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -22,22 +23,16 @@ class AiProviderChainTest {
     @Mock
     private OllamaService ollamaService;
 
-    @Mock
-    private ObjectProvider<NvidiaService> nvidiaProvider;
-
-    @Mock
-    private ObjectProvider<OllamaService> ollamaProvider;
-
     @BeforeEach
     void setUp() {
-        lenient().when(nvidiaProvider.getIfAvailable()).thenReturn(nvidiaService);
-        lenient().when(ollamaProvider.getIfAvailable()).thenReturn(ollamaService);
+        lenient().when(nvidiaService.isAvailable()).thenReturn(true);
+        lenient().when(ollamaService.isAvailable()).thenReturn(true);
     }
 
     @Test
     void testChatDelegatesToNvidiaWhenConfigured() {
-        AiProviderChain chain = new AiProviderChain(nvidiaProvider, ollamaProvider, "nvidia");
-        when(nvidiaService.isAvailable()).thenReturn(true);
+        AiProviderChain chain = new AiProviderChain(
+                List.of(nvidiaService, ollamaService), "nvidia");
         when(nvidiaService.chat(anyString(), anyString())).thenReturn("nvidia response");
 
         String result = chain.chat("system", "hello");
@@ -49,7 +44,8 @@ class AiProviderChainTest {
 
     @Test
     void testChatFallsBackToOllamaWhenNvidiaUnavailable() {
-        AiProviderChain chain = new AiProviderChain(nvidiaProvider, ollamaProvider, "nvidia");
+        AiProviderChain chain = new AiProviderChain(
+                List.of(nvidiaService, ollamaService), "nvidia");
         when(nvidiaService.isAvailable()).thenReturn(false);
         when(ollamaService.chat(anyString(), anyString())).thenReturn("ollama response");
 
@@ -61,7 +57,8 @@ class AiProviderChainTest {
 
     @Test
     void testChatDelegatesToOllamaWhenConfigured() {
-        AiProviderChain chain = new AiProviderChain(nvidiaProvider, ollamaProvider, "ollama");
+        AiProviderChain chain = new AiProviderChain(
+                List.of(nvidiaService, ollamaService), "ollama");
         when(ollamaService.chat(anyString(), anyString())).thenReturn("ollama response");
 
         String result = chain.chat("system", "hello");
@@ -73,10 +70,8 @@ class AiProviderChainTest {
 
     @Test
     void testChatReturnsErrorWhenNoProviderAvailable() {
-        when(nvidiaProvider.getIfAvailable()).thenReturn(null);
-        when(ollamaProvider.getIfAvailable()).thenReturn(null);
-
-        AiProviderChain chain = new AiProviderChain(nvidiaProvider, ollamaProvider, "nvidia");
+        AiProviderChain chain = new AiProviderChain(
+                List.of(), "nvidia");
 
         String result = chain.chat("system", "hello");
         assertEquals("Error: No AI provider is available.", result);
@@ -84,7 +79,8 @@ class AiProviderChainTest {
 
     @Test
     void testIsAvailableReturnsTrueWhenNvidiaAvailable() {
-        AiProviderChain chain = new AiProviderChain(nvidiaProvider, ollamaProvider, "nvidia");
+        AiProviderChain chain = new AiProviderChain(
+                List.of(nvidiaService, ollamaService), "nvidia");
         when(nvidiaService.isAvailable()).thenReturn(true);
 
         assertTrue(chain.isAvailable());
@@ -93,18 +89,44 @@ class AiProviderChainTest {
     @Test
     void testIsAvailableReturnsTrueWhenOllamaConfigured() {
         when(ollamaService.isAvailable()).thenReturn(true);
-        AiProviderChain chain = new AiProviderChain(nvidiaProvider, ollamaProvider, "ollama");
+        AiProviderChain chain = new AiProviderChain(
+                List.of(nvidiaService, ollamaService), "ollama");
 
         assertTrue(chain.isAvailable());
     }
 
     @Test
     void testIsAvailableReturnsFalseWhenNeitherAvailable() {
-        when(nvidiaProvider.getIfAvailable()).thenReturn(null);
-        when(ollamaProvider.getIfAvailable()).thenReturn(null);
-
-        AiProviderChain chain = new AiProviderChain(nvidiaProvider, ollamaProvider, "nvidia");
+        AiProviderChain chain = new AiProviderChain(
+                List.of(), "nvidia");
 
         assertFalse(chain.isAvailable());
+    }
+
+    @Test
+    void testChatFallsBackWhenConfiguredProviderUnavailableAndListedFirst() {
+        AiProviderChain chain = new AiProviderChain(
+                List.of(ollamaService, nvidiaService), "nvidia");
+        when(ollamaService.chat(anyString(), anyString())).thenReturn("ollama response");
+
+        // nvidia is configured but unavailable, should fall back to ollama
+        when(nvidiaService.isAvailable()).thenReturn(false);
+
+        String result = chain.chat("system", "hello");
+        assertEquals("ollama response", result);
+        verify(ollamaService).chat("system", "hello");
+    }
+
+    @Test
+    void testConfiguredProviderPreferredEvenWhenNotFirstInList() {
+        AiProviderChain chain = new AiProviderChain(
+                List.of(ollamaService, nvidiaService), "nvidia");
+        when(nvidiaService.isAvailable()).thenReturn(true);
+        when(nvidiaService.chat(anyString(), anyString())).thenReturn("nvidia response");
+
+        String result = chain.chat("system", "hello");
+        assertEquals("nvidia response", result);
+        verify(nvidiaService).chat("system", "hello");
+        verify(ollamaService, never()).chat(anyString(), anyString());
     }
 }

@@ -9,17 +9,19 @@ public class DocumentInfo {
     private String contentType;
     private long size;
     private int chunks;
+    private String owner;
     private Instant uploadedAt;
 
     public DocumentInfo() {
     }
 
-    public DocumentInfo(String id, String filename, String contentType, long size, int chunks) {
+    public DocumentInfo(String id, String filename, String contentType, long size, int chunks, String owner) {
         this.id = id;
         this.filename = filename;
         this.contentType = contentType;
         this.size = size;
         this.chunks = chunks;
+        this.owner = owner;
         this.uploadedAt = Instant.now();
     }
 
@@ -61,6 +63,14 @@ public class DocumentInfo {
 
     public void setChunks(int chunks) {
         this.chunks = chunks;
+    }
+
+    public String getOwner() {
+        return owner;
+    }
+
+    public void setOwner(String owner) {
+        this.owner = owner;
     }
 
     public Instant getUploadedAt() {

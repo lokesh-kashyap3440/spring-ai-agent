@@ -7,6 +7,7 @@ import com.example.aiagent.service.KafkaEventPublisher;
 import com.example.aiagent.service.AiService;
 import com.example.aiagent.tools.Tool;
 import com.example.aiagent.tools.ToolRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,7 +55,7 @@ class ReActAgentTest {
         Tool ragTool = mock(Tool.class);
         lenient().when(ragTool.execute(anyString())).thenReturn("No results found");
         lenient().when(toolRegistry.getTool("rag_search")).thenReturn(ragTool);
-        agent = new ReActAgent(aiService, memoryService, toolRegistry, agentConfig, kafkaPublisher, ingestionService);
+        agent = new ReActAgent(aiService, memoryService, toolRegistry, agentConfig, kafkaPublisher, ingestionService, new SimpleMeterRegistry());
     }
 
     @Test
@@ -162,7 +163,7 @@ class ReActAgentTest {
         when(aiService.chat(anyString(), anyString()))
                 .thenReturn("""
                         Thought: Let me search for this.
-                        Action: database
+                        Action: knowledge_base
                         Input: spring boot
                         """)
                 .thenReturn("""
@@ -172,8 +173,8 @@ class ReActAgentTest {
 
         Tool dbTool = mock(Tool.class);
         when(dbTool.execute("spring boot")).thenReturn("Found: Spring Boot info");
-        when(toolRegistry.getTool("database")).thenReturn(dbTool);
-        when(toolRegistry.isToolEnabled("database", null)).thenReturn(true);
+        when(toolRegistry.getTool("knowledge_base")).thenReturn(dbTool);
+        when(toolRegistry.isToolEnabled("knowledge_base", null)).thenReturn(true);
 
         agent.run("What is Spring Boot?", "session-1", null);
 

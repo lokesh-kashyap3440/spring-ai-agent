@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
-public class AgentMemoryService {
+public class AgentMemoryService implements AgentMemory {
 
     private final JdbcTemplate jdbc;
     private final int maxMessages;

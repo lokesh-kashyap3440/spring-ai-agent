@@ -70,6 +70,8 @@ management:
       probes:
         enabled: true
   metrics:
+    tags:
+      application: spring-ai-agent
     export:
       prometheus:
         enabled: true
@@ -119,4 +121,4 @@ app:
       version: ${MCP_SERVER_VERSION:1.0.0}
   jwt:
     secret: ${JWT_SECRET}
-    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+    expiration-ms: ${JWT_EXPIRATION_MS:900000}

@@ -24,8 +24,8 @@ public class AppConfig {
     @Bean
     public RestTemplate restTemplate() {
         var settings = HttpClientSettings.defaults()
-                .withConnectTimeout(Duration.ofSeconds(10))
-                .withReadTimeout(Duration.ofSeconds(120));
+                .withConnectTimeout(Duration.ofMillis(5000))
+                .withReadTimeout(Duration.ofMillis(10000));
         var requestFactory = ClientHttpRequestFactoryBuilder.simple().build(settings);
         return new RestTemplate(requestFactory);
     }

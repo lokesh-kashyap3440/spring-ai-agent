@@ -24,5 +24,8 @@ CREATE TABLE IF NOT EXISTS document_metadata (
     content_type VARCHAR(255),
     size BIGINT NOT NULL,
     chunks INT NOT NULL,
+    owner VARCHAR(255) NOT NULL DEFAULT 'anonymous',
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE document_metadata ADD COLUMN IF NOT EXISTS owner VARCHAR(255) NOT NULL DEFAULT 'anonymous';

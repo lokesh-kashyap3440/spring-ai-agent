@@ -30,8 +30,11 @@ public class KafkaConfig {
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
         props.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 2000);
+        // Keep MAX_BLOCK_MS_CONFIG at 2000 to fail fast when broker is unreachable,
+        // preventing the producer from hanging indefinitely during send() calls.
         props.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 2000);
-        props.put(ProducerConfig.RETRIES_CONFIG, 0);
+        props.put(ProducerConfig.RETRIES_CONFIG, 3);
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
         return new DefaultKafkaProducerFactory<>(props);
     }
 

@@ -5,18 +5,18 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class DatabaseToolTest {
+class KnowledgeBaseToolTest {
 
-    private DatabaseTool tool;
+    private KnowledgeBaseTool tool;
 
     @BeforeEach
     void setUp() {
-        tool = new DatabaseTool();
+        tool = new KnowledgeBaseTool();
     }
 
     @Test
     void testName() {
-        assertEquals("database", tool.getName());
+        assertEquals("knowledge_base", tool.getName());
     }
 
     @Test

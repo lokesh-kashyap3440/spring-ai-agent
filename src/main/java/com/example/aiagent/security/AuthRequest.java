@@ -10,7 +10,7 @@ public class AuthRequest {
     private String username;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 4, max = 100, message = "Password must be 4-100 characters")
+    @Size(min = 8, max = 100, message = "Password must be 8-100 characters")
     private String password;
 
     public AuthRequest() {}

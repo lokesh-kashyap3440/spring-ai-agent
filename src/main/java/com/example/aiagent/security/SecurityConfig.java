@@ -20,9 +20,11 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final RateLimitingFilter rateLimitingFilter;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, RateLimitingFilter rateLimitingFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.rateLimitingFilter = rateLimitingFilter;
     }
 
     @Bean
@@ -35,11 +37,14 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/health").permitAll()
                 .requestMatchers("/api/thread-info").permitAll()
-                .requestMatchers("/mcp/**").permitAll()
+                // Swagger paths: gated behind @Profile("dev") on OpenApiConfig;
+                // kept permitted here as a safety net so dev builds work without auth.
                 .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
                 .requestMatchers("/", "/index.html", "/static/**", "/*.html", "/*.js", "/*.css").permitAll()
+                .requestMatchers("/api/documents/**").hasAnyRole("USER", "ADMIN")
                 .anyRequest().authenticated()
             )
+            .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

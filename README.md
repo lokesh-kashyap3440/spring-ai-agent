@@ -8,9 +8,10 @@ AI Agent with Ollama/NVIDIA (LLM), PostgreSQL+pgvector (Vectors), Kafka (Events)
 - **PostgreSQL + pgvector** - Vector storage for RAG with HNSW indexing
 - **Kafka** - Event streaming and logging (optional, graceful degradation)
 - **ReAct Pattern** - Reasoning + Acting agent loop
-- **6 Tools** - Weather, News, Calculator, Database, RAG Search, Document Upload
-- **MCP Server** - Model Context Protocol compatible tool server (SSE + Streamable HTTP)
-- **JWT Authentication** - Registration and login with stateless tokens
+- **6 Tools** - Weather, News, Calculator, Knowledge Base, RAG Search, Document Upload
+- **MCP Server** - Model Context Protocol compatible tool server (SSE + Streamable HTTP) with JWT authentication
+- **JWT Authentication** - Registration and login with stateless tokens; token-to-client binding (IP + User-Agent hashed)
+- **RBAC** - Role-based access control for document endpoints (`/api/documents/**` requires `USER` or `ADMIN` role)
 - **Swagger/OpenAPI** - Interactive API documentation
 - **Dark-themed Web UI** - Chat interface with tool toggles
 
@@ -69,8 +70,10 @@ All configuration is via environment variables with sensible defaults. See `appl
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9093` | Kafka brokers |
 | `JWT_SECRET` | — | JWT signing secret (required) |
 | `AGENT_MAX_ITERATIONS` | `6` | Max ReAct loop iterations |
+| `AGENT_MAX_CONTEXT_TOKENS` | `3000` | Max context tokens for the AI provider |
 | `RAG_TOP_K` | `5` | Number of RAG search results |
 | `RAG_SIMILARITY_THRESHOLD` | `0.5` | Minimum similarity for RAG |
+| `RAG_RERANKING_ENABLED` | `true` | Enable keyword-based reranking of RAG results |
 
 ## API Endpoints
 
@@ -100,12 +103,12 @@ All configuration is via environment variables with sensible defaults. See `appl
 | DELETE | `/api/documents/{docId}` | Delete a document |
 | GET | `/api/documents/search?query=...` | Semantic search |
 
-### MCP Server API
+### MCP Server API (Authenticated)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/mcp/sse` | SSE connection |
-| POST | `/mcp` | Streamable HTTP (JSON-RPC 2.0) |
+| GET | `/mcp/sse` | SSE connection (requires Bearer JWT) |
+| POST | `/mcp` | Streamable HTTP (JSON-RPC 2.0, requires Bearer JWT) |
 
 #### MCP Tools Available
 
@@ -114,7 +117,7 @@ All configuration is via environment variables with sensible defaults. See `appl
 | `get_weather` | Get current weather | `{"city": "London"}` |
 | `get_news` | Get news headlines | `{"topic": "technology"}` |
 | `calculate` | Evaluate math | `{"expression": "2 + 2"}` |
-| `query_database` | Query knowledge base | `{"query": "What is Spring Boot?"}` |
+| `query_knowledge_base` | Query knowledge base | `{"query": "What is Spring Boot?"}` |
 | `rag_search` | Search uploaded documents | `{"query": "refund policy"}` |
 | `upload_document` | Upload a document | `{"filename": "...", "content": "...", "contentType": "..."}` |
 
@@ -165,7 +168,7 @@ ReActAgent (Orchestrator)
     ↓
 AiProviderChain → OllamaService / NvidiaService (LLM)
     ↓
-ToolRegistry → Tools (Weather, News, Calculator, Database, RAG, Upload)
+ToolRegistry → Tools (Weather, News, Calculator, KnowledgeBase, RAG, Upload)
     ↓
 AgentMemoryService (PostgreSQL)
     ↓

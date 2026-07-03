@@ -48,8 +48,8 @@ class DocumentIngestionServiceTest {
 
     @Test
     void testListDocumentsEmpty() {
-        when(jdbc.query(anyString(), any(RowMapper.class))).thenReturn(List.of());
-        List<DocumentInfo> docs = service.listDocuments();
+        when(jdbc.query(anyString(), any(RowMapper.class), anyString())).thenReturn(List.of());
+        List<DocumentInfo> docs = service.listDocuments("test-user");
         assertTrue(docs.isEmpty());
     }
 
@@ -64,13 +64,13 @@ class DocumentIngestionServiceTest {
         when(rs.getInt("chunks")).thenReturn(2);
         when(rs.getTimestamp("uploaded_at")).thenReturn(now);
 
-        when(jdbc.query(anyString(), any(RowMapper.class)))
+        when(jdbc.query(anyString(), any(RowMapper.class), anyString()))
                 .thenAnswer(invocation -> {
                     RowMapper<DocumentInfo> mapper = invocation.getArgument(1);
                     return List.of(mapper.mapRow(rs, 0));
                 });
 
-        List<DocumentInfo> docs = service.listDocuments();
+        List<DocumentInfo> docs = service.listDocuments("test-user");
         assertEquals(1, docs.size());
         assertEquals("1", docs.get(0).getId());
         assertEquals("test.pdf", docs.get(0).getFilename());
@@ -78,15 +78,15 @@ class DocumentIngestionServiceTest {
 
     @Test
     void testDeleteDocumentFound() {
-        when(jdbc.update(anyString(), eq("1"))).thenReturn(1);
-        boolean removed = service.deleteDocument("1");
+        when(jdbc.update(anyString(), eq("1"), anyString())).thenReturn(1);
+        boolean removed = service.deleteDocument("1", "test-user");
         assertTrue(removed);
     }
 
     @Test
     void testDeleteDocumentNotFound() {
-        when(jdbc.update(anyString(), eq("nonexistent"))).thenReturn(0);
-        boolean removed = service.deleteDocument("nonexistent");
+        when(jdbc.update(anyString(), eq("nonexistent"), anyString())).thenReturn(0);
+        boolean removed = service.deleteDocument("nonexistent", "test-user");
         assertFalse(removed);
     }
 

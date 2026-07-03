@@ -1,4 +1,97 @@
-# Spring AI 2.0.0 + Spring Boot 4.1.0 Migration (June 25, 2026)
+# Comprehensive Security & Architecture Refactoring (July 3, 2026)
+
+Complete overhaul of security, architecture, and code quality across 4 phases. 181 tests pass. See `CLAUDE.md` for updated project guidance.
+
+---
+
+## Phase 1 — Critical Security Fixes
+
+| File | Change |
+|------|--------|
+| `.env.example` | **New** — template with placeholder values (previous real secrets exposed in git history) |
+| `.env` | Replaced exposed `NVIDIA_API_KEY` and `JWT_SECRET` with warnings to rotate |
+| `security/SecurityConfig.java` | Removed `/mcp/**` from `permitAll()`; MCP endpoints now require JWT authentication |
+| `security/RateLimitingFilter.java` | **New** — rate limiter (5 req/min per IP) for `/api/auth/**` endpoints; returns 429 |
+| `security/JwtUtil.java` | Shortened access token expiry 24h→15min; added `generateRefreshToken()` (7-day); added `extractExpiration()`; added `generateToken(username, clientIp, userAgent)` overload with IP/UA claims |
+| `security/JwtAuthFilter.java` | Added explicit token expiration check + client IP mismatch WARN logging |
+| `controller/AuthController.java` | Added `POST /api/auth/refresh` endpoint; added `clientIp`/`userAgent` extraction for token binding; login & register now return `refreshToken` |
+| `mcp/McpServerController.java` | Added JWT validation on all MCP endpoints (SSE, Streamable HTTP, message); stores session-to-user mapping; backward compatible (warns if header missing) |
+| `AiAgentApplication.java` | Added `@EnableScheduling` for rate-limiter cleanup |
+
+---
+
+## Phase 2 — High Priority Fixes
+
+| File | Change |
+|------|--------|
+| `agent/ReActAgent.java` | Extracted prompt building to `PromptBuilder`; replaced parallel lists with `Step` records; added `ToolNames` constants; observation truncation shows char count (`... [N chars omitted]`); RAG auto-retry checks docs exist; logs WARN when overriding LLM |
+| `model/AgentState.java` | Added `record Step(String thought, String action, String observation)`; replaced 3 parallel lists with `List<Step>`; added Jackson annotations |
+| `agent/PromptBuilder.java` | **New** — extracted `buildSystemPrompt()`, `buildContext()`, `buildIterationPrompt()` from ReActAgent |
+| `tools/ToolNames.java` | **New** — constants: `WEATHER`, `NEWS`, `CALCULATOR`, `DATABASE`, `RAG_SEARCH` |
+| `tools/Tool.java` | `getParameterSchema()` changed from `String`→`Map<String, Object>`; made abstract with per-tool implementations |
+| `tools/ToolRegistry.java` → `tools/DefaultToolRegistry.java` | Extracted interface; implementation renamed |
+| `mcp/McpServerController.java` | Replaced 5 hardcoded tool injections + switch dispatch with `ToolRegistry`-driven dynamic lookup; added `toolNameToMcp()`/`mcpToToolName()` mapping; `handleToolsList()` builds schema from `getParameterSchema()`; `handleToolsCall()` uses `toolRegistry.getTool()` |
+| `service/OllamaService.java` | Removed `@ConditionalOnProperty`; added `retryWhen(Retry.backoff(3, 1s).maxBackoff(10s))` with WARN logging |
+| `service/NvidiaService.java` | Removed `@ConditionalOnProperty`; added `retryWhen(Retry.backoff(3, 1s))` with WARN logging |
+| `service/AiProviderChain.java` | Refactored from `ObjectProvider` to `List<AiService>` for proper chain-of-responsibility fallback |
+| `controller/GlobalExceptionHandler.java` | Logs full stack trace server-side; returns generic message + correlation UUID in production; exposes actual error in `dev` profile; added `MethodArgumentNotValidException` handler (400 with field errors) |
+| `model/ChatRequest.java` | Added `@NotBlank @Size(max=4096)` on `message`; `@Pattern(regexp="^[a-zA-Z0-9_-]+$")` on `sessionId`; `@Size(max=20)` on `toolsEnabled` |
+| `controller/DocumentController.java` | Added 50MB file size limit + MIME type allowlist; per-user document scoping via JWT |
+| `tools/WeatherTool.java` | Removed silent simulated-data fallback; surfaces real API errors |
+| `tools/NewsTool.java` | Removed silent simulated-data fallback; surfaces real API errors |
+| `tools/CalculatorTool.java` | Replaced naive left-to-right parser with `SpelExpressionParser` for correct operator precedence; added `sqrt()` support; proper division-by-zero detection |
+| `config/AppConfig.java` | RestTemplate bean with 5s connect / 10s read timeout |
+| `pom.xml` | Added `spring-boot-starter-actuator` |
+| `security/User.java` | Added `@Size(min=8, max=128)` on password |
+| `security/AuthRequest.java` | Password min-length 4→8 |
+| `controller/AuthController.java` | Added `validatePassword()` enforcing: 8+ chars, upper+lower+digit+special |
+| `config/KafkaConfig.java` | `RETRIES_CONFIG` 0→3; added `ENABLE_IDEMPOTENCE_CONFIG=true` |
+| `service/DefaultKafkaEventPublisher.java` | Changed `log.warn("msg: {}", e.getMessage())` → `log.warn("msg", e)` for full stack traces |
+| `service/DocumentIngestionService.java` | `ingest()` accepts `owner` parameter; `listDocuments()`/`deleteDocument()` filter by owner |
+| `model/DocumentInfo.java` | Added `owner` field |
+| `resources/schema.sql` | Added `owner VARCHAR(255)` column to `document_metadata` table |
+
+---
+
+## Phase 3 — Medium Priority Fixes
+
+| File | Change |
+|------|--------|
+| `memory/AgentMemory.java` | **New** — interface for memory operations |
+| `memory/AgentMemoryService.java` | Implements `AgentMemory` interface |
+| `tools/KnowledgeBaseTool.java` | **New** — renamed from `DatabaseTool`; `getName()` returns `"knowledge_base"`; proper MCP mapping `"query_knowledge_base"` |
+| `util/ByteArrayMultipartFile.java` | **New** — extracted from `McpServerController` inner class to top-level utility |
+| `model/AgentState.java` | Added `estimatedTokenCount()` and `truncateStepsToFit()` for context window management |
+| `config/AgentConfig.java` | Added `maxContextTokens` field (default 3000) |
+| `agent/ReActAgent.java` | Before each iteration, estimates token budget and auto-truncates oldest steps if threshold exceeded |
+| `service/AiService.java` | Added `default getLastPromptTokens()` and `getLastCompletionTokens()` (backward compatible, return 0) |
+| `service/AiProviderChain.java` | Added `AtomicInteger totalPromptTokens` / `totalCompletionTokens` counters |
+| `controller/AgentController.java` | Added `GET /api/agent/tokens` endpoint returning `{promptTokens, completionTokens, totalTokens}` |
+| `service/DocumentIngestionService.java` | Added `rerank()` with keyword-overlap scoring: `0.7 * similarity + 0.3 * keyword_ratio`; configurable via `RagConfig.rerankingEnabled` |
+| `config/RagConfig.java` | Added `rerankingEnabled` field (default `true`) |
+| `resources/prompts/system-prompt.txt` | **New** — externalized system prompt template with `{tool_descriptions}` placeholder |
+| `agent/PromptBuilder.java` | Loads system prompt from classpath resource; inlines fallback if file unreadable |
+| `tools/DefaultToolRegistry.java` | `getToolNames(Set)` now filters against registered keys instead of returning blind set |
+| `controller/GlobalExceptionHandler.java` | Removed redundant `@ExceptionHandler(RuntimeException.class)` (caught by `Exception` handler) |
+| `mcp/McpServerController.java` | SSE connection limit uses `AtomicInteger` (fixes TOCTOU race); cleanup Runnable shared across onCompletion/onTimeout/onError |
+| `security/SecurityConfig.java` | Added `.requestMatchers("/api/documents/**").hasAnyRole("USER", "ADMIN")` for RBAC |
+| `config/OpenApiConfig.java` | Gated Swagger behind `@Profile("dev")` |
+| `agent/ReActAgent.java` | Injected `MeterRegistry`; added `Timer` (`agent.loop.duration`), `Counter` (`agent.tool.calls`), per-tool `Timer` (`agent.tool.duration`) |
+| `tools/DefaultToolRegistry.java` | Injected `MeterRegistry`; added `Counter` (`tool.registry.lookups`) |
+| `resources/application.yml` | Added `management.metrics.tags.application: spring-ai-agent`; actuator exposes `health,metrics,prometheus` |
+| `ARCHITECTURE.md` | Updated: `qwen3.5:4b`→`llama3.2:3b`, `SimpleVectorStore`→`PgVectorStore`, `Redis`→`PostgreSQL`, added MCP auth note |
+
+---
+
+## Phase 4 — Low Priority & Cleanup
+
+| File | Change |
+|------|--------|
+| `security/JwtUtil.java` | Added `generateToken(username, clientIp, userAgent)` with `clientIp`/`userAgentHash` claims |
+| `security/JwtAuthFilter.java` | Warns on client IP mismatch (does not reject — IPs can change legitimately) |
+| `controller/AuthController.java` | Reads `X-Forwarded-For`/`User-Agent` headers for token binding |
+| `README.md` | Updated for MCP auth, RBAC, new config params (`AGENT_MAX_CONTEXT_TOKENS`, `RAG_RERANKING_ENABLED`), `KnowledgeBaseTool` name |
+| Various test files | All 181 tests pass — fixed constructor signatures, mock setups, password validation, and tool renames across test suite |
 
 Upgraded from Spring AI 1.0.8 + Spring Boot 3.5.15 → Spring AI 2.0.0 + Spring Boot 4.1.0.
 

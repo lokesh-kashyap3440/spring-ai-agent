@@ -8,6 +8,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
@@ -32,6 +33,17 @@ public class RAGTool implements Tool {
     }
 
     @Override
+    public Map<String, Object> getParameterSchema() {
+        return Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "query", Map.of("type", "string", "description", "Search query (e.g., 'What is the refund policy?')")
+            ),
+            "required", List.of("query")
+        );
+    }
+
+    @Override
     public String execute(String input) {
         try {
             String query = input.trim();
@@ -47,7 +59,7 @@ public class RAGTool implements Tool {
                 return "NO_RESULTS: No relevant information found in any uploaded document for the query: " + query + ". The uploaded documents do not contain this information.";
             }
 
-            List<DocumentInfo> allDocs = ingestionService.listDocuments();
+            List<DocumentInfo> allDocs = ingestionService.listDocuments(null);
             String availableDocs = allDocs.isEmpty() ? "No documents available." :
                     "Available documents: " + allDocs.stream().map(DocumentInfo::getFilename).collect(Collectors.joining(", "));
 

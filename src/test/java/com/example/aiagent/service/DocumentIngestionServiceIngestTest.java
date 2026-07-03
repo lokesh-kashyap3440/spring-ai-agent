@@ -70,26 +70,16 @@ class DocumentIngestionServiceIngestTest {
     }
 
     @Test
-    void testCountEntriesReturnsZeroWhenNoResults() {
-        when(vectorStore.similaritySearch(any(SearchRequest.class)))
-                .thenReturn(List.of());
-
-        long count = service.countEntries("deity");
-
-        assertEquals(0, count);
-    }
-
-    @Test
     void testDeleteDocumentReturnsTrueWhenDeleted() {
-        when(jdbc.update(anyString(), eq("doc-1"))).thenReturn(1);
+        when(jdbc.update(anyString(), eq("doc-1"), anyString())).thenReturn(1);
 
-        assertTrue(service.deleteDocument("doc-1"));
+        assertTrue(service.deleteDocument("doc-1", "test-user"));
     }
 
     @Test
     void testDeleteDocumentReturnsFalseWhenNotFound() {
-        when(jdbc.update(anyString(), eq("nonexistent"))).thenReturn(0);
+        when(jdbc.update(anyString(), eq("nonexistent"), anyString())).thenReturn(0);
 
-        assertFalse(service.deleteDocument("nonexistent"));
+        assertFalse(service.deleteDocument("nonexistent", "test-user"));
     }
 }

@@ -9,6 +9,7 @@ public class RagConfig {
 
     private int topK = 5;
     private double similarityThreshold = 0.5;
+    private boolean rerankingEnabled = true;
 
     public int getTopK() {
         return topK;
@@ -24,5 +25,13 @@ public class RagConfig {
 
     public void setSimilarityThreshold(double similarityThreshold) {
         this.similarityThreshold = similarityThreshold;
+    }
+
+    public boolean isRerankingEnabled() {
+        return rerankingEnabled;
+    }
+
+    public void setRerankingEnabled(boolean rerankingEnabled) {
+        this.rerankingEnabled = rerankingEnabled;
     }
 }

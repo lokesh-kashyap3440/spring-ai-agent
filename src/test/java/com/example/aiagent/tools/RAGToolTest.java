@@ -45,8 +45,8 @@ class RAGToolTest {
         doc.getMetadata().put("filename", "doc.pdf");
         when(ingestionService.search(eq("refund policy"), anyInt()))
                 .thenReturn(List.of(doc));
-        when(ingestionService.listDocuments())
-                .thenReturn(List.of(new DocumentInfo("1", "doc.pdf", "application/pdf", 100, 1)));
+        when(ingestionService.listDocuments(any()))
+                .thenReturn(List.of(new DocumentInfo("1", "doc.pdf", "application/pdf", 100, 1, null)));
 
         String result = tool.execute("refund policy");
         assertTrue(result.contains("Document excerpt 1"));
@@ -89,7 +89,7 @@ class RAGToolTest {
         Document doc = new Document("content");
         doc.getMetadata().put("filename", "unknown");
         when(ingestionService.search(anyString(), anyInt())).thenReturn(List.of(doc));
-        when(ingestionService.listDocuments()).thenReturn(List.of());
+        when(ingestionService.listDocuments(any())).thenReturn(List.of());
 
         String result = tool.execute("test");
         assertTrue(result.contains("No documents available."));

@@ -1,5 +1,8 @@
 package com.example.aiagent.tools;
 
+import java.util.List;
+import java.util.Map;
+
 public interface Tool {
 
     String getName();
@@ -8,7 +11,13 @@ public interface Tool {
 
     String execute(String input);
 
-    default String getParameterSchema() {
-        return "{\"type\": \"string\", \"description\": \"Input for " + getName() + "\"}";
+    default Map<String, Object> getParameterSchema() {
+        return Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "input", Map.of("type", "string", "description", "Input for " + getName())
+            ),
+            "required", List.of("input")
+        );
     }
 }

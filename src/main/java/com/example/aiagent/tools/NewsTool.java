@@ -3,6 +3,9 @@ package com.example.aiagent.tools;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.List;
+import java.util.Map;
+
 @Component
 public class NewsTool implements Tool {
 
@@ -23,6 +26,17 @@ public class NewsTool implements Tool {
     }
 
     @Override
+    public Map<String, Object> getParameterSchema() {
+        return Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "topic", Map.of("type", "string", "description", "Topic name (e.g., technology)")
+            ),
+            "required", List.of("topic")
+        );
+    }
+
+    @Override
     public String execute(String input) {
         try {
             String topic = input.trim().toLowerCase();
@@ -33,12 +47,10 @@ public class NewsTool implements Tool {
             String result = restTemplate.getForObject(url, String.class);
             return result;
         } catch (Exception e) {
-            return String.format(
-                    "Simulated news for '%s': 1) Major development in %s reported today. " +
-                            "2) Breaking: New trends emerge in %s sector. " +
-                            "3) Analysis: Current state of %s market.",
-                    input.trim(), input.trim(), input.trim(), input.trim()
-            );
+            return "Simulated news for '" + input.trim().toLowerCase()
+                    + "' - Headline 1: Breaking news in " + input.trim().toLowerCase()
+                    + ". Headline 2: Latest updates from " + input.trim().toLowerCase()
+                    + ". Headline 3: " + input.trim().toLowerCase() + " market report.";
         }
     }
 }

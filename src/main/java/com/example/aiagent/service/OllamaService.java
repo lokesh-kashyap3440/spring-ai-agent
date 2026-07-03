@@ -8,7 +8,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -18,7 +17,6 @@ import reactor.util.retry.Retry;
 import java.time.Duration;
 
 @Service
-@ConditionalOnProperty(name = "app.ai.provider", havingValue = "ollama")
 public class OllamaService implements AiService {
 
     private static final Logger log = LoggerFactory.getLogger(OllamaService.class);
@@ -45,8 +43,12 @@ public class OllamaService implements AiService {
                     .retrieve()
                     .bodyToMono(String.class)
                     .timeout(Duration.ofSeconds(config.getTimeout()))
+                    .retryWhen(Retry.backoff(3, Duration.ofSeconds(1))
+                            .maxBackoff(Duration.ofSeconds(10))
+                            .doBeforeRetry(rs -> log.warn("Ollama API call failed, retrying... attempt {}",
+                                    rs.totalRetries() + 1)))
                     .onErrorResume(e -> {
-                        log.error("Ollama API error: {}", e.getMessage());
+                        log.error("Ollama API error after retries: {}", e.getMessage());
                         return Mono.just("{\"message\":{\"content\":\"Error communicating with Ollama: " + e.getMessage() + "\"}}");
                     })
                     .block();

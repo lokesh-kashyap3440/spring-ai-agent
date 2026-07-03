@@ -4,6 +4,7 @@ import com.example.aiagent.agent.ReActAgent;
 import com.example.aiagent.memory.AgentMemoryService;
 import com.example.aiagent.model.ChatRequest;
 import com.example.aiagent.model.ChatResponse;
+import com.example.aiagent.service.AiProviderChain;
 import com.example.aiagent.service.KafkaEventPublisher;
 import com.example.aiagent.service.AiService;
 import com.example.aiagent.tools.ToolRegistry;
@@ -30,15 +31,18 @@ public class AgentController {
     private final AgentMemoryService memoryService;
     private final ToolRegistry toolRegistry;
     private final KafkaEventPublisher kafkaPublisher;
+    private final AiProviderChain aiProviderChain;
 
     public AgentController(ReActAgent agent, AiService aiService,
                            AgentMemoryService memoryService, ToolRegistry toolRegistry,
-                           KafkaEventPublisher kafkaPublisher) {
+                           KafkaEventPublisher kafkaPublisher,
+                           AiProviderChain aiProviderChain) {
         this.agent = agent;
         this.aiService = aiService;
         this.memoryService = memoryService;
         this.toolRegistry = toolRegistry;
         this.kafkaPublisher = kafkaPublisher;
+        this.aiProviderChain = aiProviderChain;
     }
 
     @PostMapping("/agent/chat")
@@ -87,6 +91,17 @@ public class AgentController {
                         Map.Entry::getKey,
                         e -> e.getValue().getDescription()
                 )));
+    }
+
+    @GetMapping("/agent/tokens")
+    public ResponseEntity<Map<String, Object>> getTokenUsage() {
+        int promptTokens = aiProviderChain.getTotalPromptTokens();
+        int completionTokens = aiProviderChain.getTotalCompletionTokens();
+        return ResponseEntity.ok(Map.of(
+                "promptTokens", promptTokens,
+                "completionTokens", completionTokens,
+                "totalTokens", promptTokens + completionTokens
+        ));
     }
 
     @GetMapping("/health")

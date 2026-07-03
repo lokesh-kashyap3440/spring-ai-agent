@@ -2,10 +2,12 @@ package com.example.aiagent.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 @Primary
@@ -13,16 +15,15 @@ public class AiProviderChain implements AiService {
 
     private static final Logger log = LoggerFactory.getLogger(AiProviderChain.class);
 
-    private final NvidiaService nvidiaService;
-    private final OllamaService ollamaService;
-    private final String provider;
+    private final List<AiService> providers;
+    private final String configuredProvider;
+    private final AtomicInteger totalPromptTokens = new AtomicInteger(0);
+    private final AtomicInteger totalCompletionTokens = new AtomicInteger(0);
 
-    public AiProviderChain(ObjectProvider<NvidiaService> nvidiaProvider,
-                           ObjectProvider<OllamaService> ollamaProvider,
-                           @Value("${app.ai.provider:nvidia}") String provider) {
-        this.nvidiaService = nvidiaProvider.getIfAvailable();
-        this.ollamaService = ollamaProvider.getIfAvailable();
-        this.provider = provider;
+    public AiProviderChain(List<AiService> providers,
+                           @Value("${app.ai.provider:nvidia}") String configuredProvider) {
+        this.providers = providers;
+        this.configuredProvider = configuredProvider;
     }
 
     @Override
@@ -32,7 +33,12 @@ public class AiProviderChain implements AiService {
             log.error("No AI provider available.");
             return "Error: No AI provider is available.";
         }
-        return provider.chat(systemPrompt, userMessage);
+        log.info("Using AI provider: {}", provider.getClass().getSimpleName());
+        String response = provider.chat(systemPrompt, userMessage);
+        // Accumulate token usage from the underlying provider
+        totalPromptTokens.addAndGet(provider.getLastPromptTokens());
+        totalCompletionTokens.addAndGet(provider.getLastCompletionTokens());
+        return response;
     }
 
     @Override
@@ -41,18 +47,43 @@ public class AiProviderChain implements AiService {
         return provider != null && provider.isAvailable();
     }
 
+    public int getTotalPromptTokens() {
+        return totalPromptTokens.get();
+    }
+
+    public int getTotalCompletionTokens() {
+        return totalCompletionTokens.get();
+    }
+
+    public int getTotalTokens() {
+        return totalPromptTokens.get() + totalCompletionTokens.get();
+    }
+
     private AiService resolveProvider() {
-        if ("nvidia".equals(provider) && nvidiaService != null && nvidiaService.isAvailable()) {
-            return nvidiaService;
+        // First, try the explicitly configured provider
+        AiService configured = findProviderBySimpleName(configuredProvider);
+        if (configured != null && configured.isAvailable()) {
+            return configured;
         }
-        if ("ollama".equals(provider) && ollamaService != null) {
-            return ollamaService;
+
+        // Fallback: return the first available provider
+        for (AiService provider : providers) {
+            if (provider != this && provider.isAvailable()) {
+                return provider;
+            }
         }
-        if (nvidiaService != null && nvidiaService.isAvailable()) {
-            return nvidiaService;
-        }
-        if (ollamaService != null) {
-            return ollamaService;
+        return null;
+    }
+
+    private AiService findProviderBySimpleName(String name) {
+        String lower = name.toLowerCase();
+        for (AiService provider : providers) {
+            if (provider != this) {
+                String simpleName = provider.getClass().getSimpleName().toLowerCase();
+                if (simpleName.contains(lower) || simpleName.equals(lower + "service")) {
+                    return provider;
+                }
+            }
         }
         return null;
     }

@@ -3,6 +3,7 @@ package com.example.aiagent.controller;
 import com.example.aiagent.agent.ReActAgent;
 import com.example.aiagent.memory.AgentMemoryService;
 import com.example.aiagent.model.ChatRequest;
+import com.example.aiagent.service.AiProviderChain;
 import com.example.aiagent.service.KafkaEventPublisher;
 import com.example.aiagent.service.AiService;
 import com.example.aiagent.tools.Tool;
@@ -44,6 +45,9 @@ class AgentControllerTest {
     @Mock
     private KafkaEventPublisher kafkaPublisher;
 
+    @Mock
+    private AiProviderChain aiProviderChain;
+
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
 
@@ -51,7 +55,7 @@ class AgentControllerTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
-        AgentController controller = new AgentController(agent, aiService, memoryService, toolRegistry, kafkaPublisher);
+        AgentController controller = new AgentController(agent, aiService, memoryService, toolRegistry, kafkaPublisher, aiProviderChain);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 

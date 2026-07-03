@@ -18,8 +18,11 @@ import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Handles document ingestion, storage, and retrieval for the RAG pipeline.
@@ -55,7 +58,7 @@ public class DocumentIngestionService {
     }
 
     @Transactional
-    public DocumentInfo ingest(MultipartFile file) throws IOException {
+    public DocumentInfo ingest(MultipartFile file, String owner) throws IOException {
         String docId = UUID.randomUUID().toString();
         String filename = file.getOriginalFilename();
 
@@ -81,72 +84,80 @@ public class DocumentIngestionService {
 
         vectorStore.add(chunks);
 
-        jdbc.update("INSERT INTO document_metadata (doc_id, filename, content_type, size, chunks, uploaded_at) VALUES (?, ?, ?, ?, ?, ?)",
-                docId, filename, file.getContentType(), file.getSize(), chunks.size(), now);
+        jdbc.update("INSERT INTO document_metadata (doc_id, filename, content_type, size, chunks, owner, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                docId, filename, file.getContentType(), file.getSize(), chunks.size(), owner, now);
 
         DocumentInfo info = new DocumentInfo(docId, filename, file.getContentType(),
-                file.getSize(), chunks.size());
+                file.getSize(), chunks.size(), owner);
         log.info("Document '{}' ingested successfully: {} chunks stored", filename, chunks.size());
         return info;
     }
 
     public List<Document> search(String query, int topK) {
         try {
-            return vectorStore.similaritySearch(
+            List<Document> results = vectorStore.similaritySearch(
                     SearchRequest.builder()
                             .query(query)
                             .topK(topK)
                             .similarityThreshold(ragConfig.getSimilarityThreshold())
                             .build()
             );
+
+            if (ragConfig.isRerankingEnabled() && results.size() > 1) {
+                results = rerank(query, results);
+            }
+
+            return results;
         } catch (Exception e) {
             log.error("Vector search failed for query '{}': {}", query, e.getMessage());
             return List.of();
         }
     }
 
-    public long countEntries(String deityName) {
-        List<Document> results = vectorStore.similaritySearch(
-                SearchRequest.builder()
-                        .query(deityName + " temple")
-                        .topK(500)
-                        .similarityThreshold(0.0)
-                        .build()
-        );
+    /**
+     * Applies keyword-based reranking to similarity search results.
+     * Each result is scored as: {@code 0.7 * similarity + 0.3 * keyword_overlap_ratio}.
+     * Results containing exact query terms are boosted above purely vector-similar ones.
+     */
+    private List<Document> rerank(String query, List<Document> results) {
+        List<String> queryTerms = Arrays.stream(query.toLowerCase().split("\\s+"))
+                .filter(t -> t.length() > 2)
+                .collect(Collectors.toList());
 
-        long count = 0;
-        for (Document doc : results) {
-            String text = doc.getText();
-            for (String line : text.split("\n")) {
-                line = line.trim();
-                if (line.isEmpty()) continue;
-                String[] parts = line.split("\\s+");
-                if (parts.length >= 4) {
-                    String templeName = (parts[0] + " " + parts[1]).toLowerCase();
-                    String deity = parts[2].toLowerCase();
-                    String search = deityName.toLowerCase();
-                    if (templeName.equals(search + " temple") || deity.equals(search)) {
-                        count++;
-                    }
-                }
-            }
+        if (queryTerms.isEmpty()) {
+            return results;
         }
-        return count;
+
+        return results.stream()
+                .sorted(Comparator.comparingDouble((Document doc) ->
+                        computeCombinedScore(doc, queryTerms)).reversed())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Computes a combined relevance score for a document: {@code 0.7 * similarity + 0.3 * keyword_overlap_ratio}.
+     */
+    private static double computeCombinedScore(Document doc, List<String> queryTerms) {
+        double similarity = doc.getScore() != null ? doc.getScore().doubleValue() : 0.0;
+        String text = doc.getText().toLowerCase();
+        long matchCount = queryTerms.stream().filter(text::contains).count();
+        double keywordOverlap = (double) matchCount / queryTerms.size();
+        return 0.7 * similarity + 0.3 * keywordOverlap;
     }
 
     public List<Document> search(String query) {
         return search(query, ragConfig.getTopK());
     }
 
-    public List<DocumentInfo> listDocuments() {
+    public List<DocumentInfo> listDocuments(String owner) {
         return jdbc.query(
-                "SELECT doc_id, filename, content_type, size, chunks, uploaded_at FROM document_metadata ORDER BY uploaded_at DESC",
-                this::mapDocumentInfo
+                "SELECT doc_id, filename, content_type, size, chunks, owner, uploaded_at FROM document_metadata WHERE owner = ? ORDER BY uploaded_at DESC",
+                this::mapDocumentInfo, owner
         );
     }
 
-    public boolean deleteDocument(String docId) {
-        int updated = jdbc.update("DELETE FROM document_metadata WHERE doc_id = ?", docId);
+    public boolean deleteDocument(String docId, String owner) {
+        int updated = jdbc.update("DELETE FROM document_metadata WHERE doc_id = ? AND owner = ?", docId, owner);
         if (updated > 0) {
             log.info("Document {} removed from metadata index", docId);
             log.warn("Vector store chunks for docId={} are not cleaned up automatically. "
@@ -162,6 +173,7 @@ public class DocumentIngestionService {
         info.setContentType(rs.getString("content_type"));
         info.setSize(rs.getLong("size"));
         info.setChunks(rs.getInt("chunks"));
+        info.setOwner(rs.getString("owner"));
         Timestamp ts = rs.getTimestamp("uploaded_at");
         if (ts != null) {
             info.setUploadedAt(ts.toInstant());

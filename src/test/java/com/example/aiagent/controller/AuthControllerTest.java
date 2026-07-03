@@ -49,10 +49,11 @@ class AuthControllerTest {
     @Test
     void testRegisterSuccess() throws Exception {
         when(userRepository.existsByUsername("newuser")).thenReturn(false);
-        when(passwordEncoder.encode("pass1234")).thenReturn("encoded-pass");
-        when(jwtUtil.generateToken("newuser")).thenReturn("jwt-token");
+        when(passwordEncoder.encode("Pass1234!")).thenReturn("encoded-pass");
+        when(jwtUtil.generateToken(any(), any(), any())).thenReturn("jwt-token");
+        when(jwtUtil.generateRefreshToken(anyString())).thenReturn("refresh-token");
 
-        AuthRequest request = new AuthRequest("newuser", "pass1234");
+        AuthRequest request = new AuthRequest("newuser", "Pass1234!");
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -95,7 +96,8 @@ class AuthControllerTest {
         User user = new User("id-1", "testuser", "encoded-pass", Set.of("ROLE_USER"));
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("pass1234", "encoded-pass")).thenReturn(true);
-        when(jwtUtil.generateToken("testuser")).thenReturn("jwt-token");
+        when(jwtUtil.generateToken(any(), any(), any())).thenReturn("jwt-token");
+        when(jwtUtil.generateRefreshToken("testuser")).thenReturn("refresh-token");
 
         AuthRequest request = new AuthRequest("testuser", "pass1234");
 

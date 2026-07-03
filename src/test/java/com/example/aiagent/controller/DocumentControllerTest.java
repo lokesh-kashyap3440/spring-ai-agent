@@ -2,6 +2,7 @@ package com.example.aiagent.controller;
 
 import com.example.aiagent.config.RagConfig;
 import com.example.aiagent.model.DocumentInfo;
+import com.example.aiagent.security.JwtUtil;
 import com.example.aiagent.service.DocumentIngestionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -34,6 +35,9 @@ class DocumentControllerTest {
     @Mock
     private RagConfig ragConfig;
 
+    @Mock
+    private JwtUtil jwtUtil;
+
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
 
@@ -42,20 +46,25 @@ class DocumentControllerTest {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         when(ragConfig.getTopK()).thenReturn(5);
-        DocumentController controller = new DocumentController(ingestionService, ragConfig);
+        when(jwtUtil.extractUsername(anyString())).thenReturn("test-user");
+        DocumentController controller = new DocumentController(ingestionService, ragConfig, jwtUtil);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+    }
+
+    private static String auth() {
+        return "Bearer test-token";
     }
 
     @Test
     void testUploadDocument() throws Exception {
-        DocumentInfo info = new DocumentInfo("doc-1", "test.pdf", "application/pdf", 1024, 3);
-        when(ingestionService.ingest(any())).thenReturn(info);
+        DocumentInfo info = new DocumentInfo("doc-1", "test.pdf", "application/pdf", 1024, 3, "test-user");
+        when(ingestionService.ingest(any(), anyString())).thenReturn(info);
 
         MockMultipartFile file = new MockMultipartFile(
                 "file", "test.pdf", "application/pdf", "test content".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/documents/upload").file(file))
+        mockMvc.perform(multipart("/api/documents/upload").file(file).header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("success"))
                 .andExpect(jsonPath("$.document.id").value("doc-1"))
@@ -68,7 +77,7 @@ class DocumentControllerTest {
                 "file", "empty.txt", "text/plain", new byte[0]
         );
 
-        mockMvc.perform(multipart("/api/documents/upload").file(file))
+        mockMvc.perform(multipart("/api/documents/upload").file(file).header("Authorization", auth()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("File is empty"));
     }
@@ -79,7 +88,7 @@ class DocumentControllerTest {
                 "file", "test.exe", "application/x-msdownload", "content".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/documents/upload").file(file))
+        mockMvc.perform(multipart("/api/documents/upload").file(file).header("Authorization", auth()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Unsupported file type: application/x-msdownload"));
     }
@@ -90,17 +99,17 @@ class DocumentControllerTest {
                 "file", "test.txt", null, "content".getBytes()
         );
 
-        mockMvc.perform(multipart("/api/documents/upload").file(file))
+        mockMvc.perform(multipart("/api/documents/upload").file(file).header("Authorization", auth()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").exists());
     }
 
     @Test
     void testListDocuments() throws Exception {
-        DocumentInfo info = new DocumentInfo("doc-1", "test.pdf", "application/pdf", 100, 2);
-        when(ingestionService.listDocuments()).thenReturn(List.of(info));
+        DocumentInfo info = new DocumentInfo("doc-1", "test.pdf", "application/pdf", 100, 2, "test-user");
+        when(ingestionService.listDocuments(anyString())).thenReturn(List.of(info));
 
-        mockMvc.perform(get("/api/documents"))
+        mockMvc.perform(get("/api/documents").header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value("doc-1"))
                 .andExpect(jsonPath("$[0].filename").value("test.pdf"));
@@ -108,18 +117,18 @@ class DocumentControllerTest {
 
     @Test
     void testListDocumentsEmpty() throws Exception {
-        when(ingestionService.listDocuments()).thenReturn(List.of());
+        when(ingestionService.listDocuments(anyString())).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/documents"))
+        mockMvc.perform(get("/api/documents").header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
     }
 
     @Test
     void testDeleteDocumentFound() throws Exception {
-        when(ingestionService.deleteDocument("doc-1")).thenReturn(true);
+        when(ingestionService.deleteDocument(anyString(), anyString())).thenReturn(true);
 
-        mockMvc.perform(delete("/api/documents/doc-1"))
+        mockMvc.perform(delete("/api/documents/doc-1").header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("deleted"))
                 .andExpect(jsonPath("$.docId").value("doc-1"));
@@ -127,9 +136,9 @@ class DocumentControllerTest {
 
     @Test
     void testDeleteDocumentNotFound() throws Exception {
-        when(ingestionService.deleteDocument("nonexistent")).thenReturn(false);
+        when(ingestionService.deleteDocument(anyString(), anyString())).thenReturn(false);
 
-        mockMvc.perform(delete("/api/documents/nonexistent"))
+        mockMvc.perform(delete("/api/documents/nonexistent").header("Authorization", auth()))
                 .andExpect(status().isNotFound());
     }
 

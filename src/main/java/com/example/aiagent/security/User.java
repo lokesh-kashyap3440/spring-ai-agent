@@ -1,11 +1,14 @@
 package com.example.aiagent.security;
 
+import jakarta.validation.constraints.Size;
+
 import java.util.Set;
 
 public class User {
 
     private String id;
     private String username;
+    @Size(min = 8, max = 128, message = "Password must be 8-128 characters")
     private String password;
     private Set<String> roles;
 

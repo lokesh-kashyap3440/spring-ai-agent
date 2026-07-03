@@ -29,7 +29,7 @@ class KafkaConfigTest {
         Map<String, Object> props = defaultFactory.getConfigurationProperties();
         assertEquals("localhost:9092", props.get("bootstrap.servers"));
         assertEquals("2000", props.get("max.block.ms").toString());
-        assertEquals("0", props.get("retries").toString());
+        assertEquals("3", props.get("retries").toString());
         assertEquals("2000", props.get("request.timeout.ms").toString());
     }
 

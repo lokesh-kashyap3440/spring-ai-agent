@@ -1,5 +1,7 @@
 package com.example.aiagent.tools;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -12,15 +14,16 @@ import static org.junit.jupiter.api.Assertions.*;
 class ToolRegistryTest {
 
     private ToolRegistry registry;
+    private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     @BeforeEach
     void setUp() {
-        registry = new ToolRegistry(List.of(
+        registry = new DefaultToolRegistry(List.of(
                 new CalculatorTool(),
                 mockTool("weather", "Get weather"),
                 mockTool("news", "Get news"),
-                mockTool("database", "Query database")
-        ));
+                mockTool("knowledge_base", "Query knowledge base")
+        ), meterRegistry);
     }
 
     private Tool mockTool(String name, String description) {
@@ -43,7 +46,7 @@ class ToolRegistryTest {
         assertTrue(all.containsKey("calculator"));
         assertTrue(all.containsKey("weather"));
         assertTrue(all.containsKey("news"));
-        assertTrue(all.containsKey("database"));
+        assertTrue(all.containsKey("knowledge_base"));
     }
 
     @Test
@@ -64,7 +67,7 @@ class ToolRegistryTest {
         assertTrue(desc.contains("- calculator:"));
         assertTrue(desc.contains("- weather:"));
         assertTrue(desc.contains("- news:"));
-        assertTrue(desc.contains("- database:"));
+        assertTrue(desc.contains("- knowledge_base:"));
     }
 
     @Test
@@ -73,7 +76,7 @@ class ToolRegistryTest {
         assertTrue(desc.contains("- weather:"));
         assertTrue(desc.contains("- news:"));
         assertFalse(desc.contains("- calculator:"));
-        assertFalse(desc.contains("- database:"));
+        assertFalse(desc.contains("- knowledge_base:"));
     }
 
     @Test
@@ -82,7 +85,7 @@ class ToolRegistryTest {
         assertTrue(desc.contains("- calculator:"));
         assertTrue(desc.contains("- weather:"));
         assertTrue(desc.contains("- news:"));
-        assertTrue(desc.contains("- database:"));
+        assertTrue(desc.contains("- knowledge_base:"));
     }
 
     @Test
@@ -120,7 +123,7 @@ class ToolRegistryTest {
 
     @Test
     void testEmptyRegistry() {
-        ToolRegistry empty = new ToolRegistry(List.of());
+        DefaultToolRegistry empty = new DefaultToolRegistry(List.of(), meterRegistry);
         assertTrue(empty.getAllTools().isEmpty());
         assertEquals("", empty.getToolDescriptions());
         assertEquals("", empty.getToolNames());

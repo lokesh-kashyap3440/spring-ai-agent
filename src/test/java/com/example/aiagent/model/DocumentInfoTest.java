@@ -17,7 +17,7 @@ class DocumentInfoTest {
 
     @Test
     void testParameterizedConstructor() {
-        DocumentInfo info = new DocumentInfo("doc-1", "test.pdf", "application/pdf", 1024, 5);
+        DocumentInfo info = new DocumentInfo("doc-1", "test.pdf", "application/pdf", 1024, 5, "test-user");
         assertEquals("doc-1", info.getId());
         assertEquals("test.pdf", info.getFilename());
         assertEquals("application/pdf", info.getContentType());

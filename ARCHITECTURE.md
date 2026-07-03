@@ -71,7 +71,7 @@
 │    PostgreSQL   │ │     Kafka       │ │        Ollama               │
 │   (Local/Prod)  │ │   (Optional)    │ │      (Port 11434)           │
 │                 │ │   (Port 9093)   │ │                             │
-│ • Vector store  │ │                 │ │ • LLM: qwen3.5:4b          │
+│ • Vector store  │ │                 │ │ • LLM: llama3.2:3b         │
 │ • Chat history  │ │ • Event logging │ │ • Embedding: nomic-embed   │
 │ • Doc metadata  │ │ • Audit trail   │ │ • Local inference          │
 └─────────────────┘ └─────────────────┘ └─────────────────────────────┘
@@ -98,7 +98,7 @@ Upload Document → DocumentIngestionService → Tika Parser → Text Splitter
                                           Ollama Embeddings (nomic-embed-text)
                                                         │
                                                         ▼
-                                          SimpleVectorStore (in-memory index)
+                                          PgVectorStore (PostgreSQL + pgvector)
                                                         │
                                                         ▼
 User Query → RAGTool → Vector Search → Top-K Chunks → LLM Context → Answer
@@ -133,7 +133,7 @@ Final Answer: response to user
 | Spring Boot | 8082            | Main application            |
 | MCP SSE     | GET /mcp/sse    | Real-time event stream      |
 | MCP HTTP    | POST /mcp       | JSON-RPC requests           |
-| Redis       | localhost:6380  | Agent memory & chat history |
+| PostgreSQL  | localhost:5432  | Chat history & doc metadata |
 | Kafka       | localhost:9093  | Event publishing            |
 | Ollama      | localhost:11434 | LLM & embeddings            |
 
@@ -153,3 +153,6 @@ Final Answer: response to user
 - All dependencies updated for CVE fixes (June 2026)
 - OWASP Dependency-Check: CVSS threshold = 8
 - Suppressions: `dependency-check-suppressions.xml`
+- MCP endpoints (`/mcp/**`) accept optional JWT auth for backward compatibility;
+  production deployments should enforce Authentication via a reverse proxy or
+  by updating `SecurityConfig` to require authentication on `/mcp/**`

@@ -41,7 +41,7 @@ public class DefaultKafkaEventPublisher implements KafkaEventPublisher {
             kafkaTemplate.send(chatTopic, sessionId, payload);
             log.debug("Published chat event: {} for session: {}", event, sessionId);
         } catch (Exception e) {
-            log.warn("Failed to publish Kafka event: {}", e.getMessage());
+            log.warn("Failed to publish Kafka event", e);
         }
     }
 
@@ -57,7 +57,7 @@ public class DefaultKafkaEventPublisher implements KafkaEventPublisher {
             kafkaTemplate.send(eventsTopic, sessionId, payload);
             log.debug("Published agent event: {} for session: {}", type, sessionId);
         } catch (Exception e) {
-            log.warn("Failed to publish Kafka event: {}", e.getMessage());
+            log.warn("Failed to publish Kafka event", e);
         }
     }
 }

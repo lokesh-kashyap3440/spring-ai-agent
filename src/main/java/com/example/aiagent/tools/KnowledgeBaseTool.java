@@ -2,15 +2,16 @@ package com.example.aiagent.tools;
 
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
-public class DatabaseTool implements Tool {
+public class KnowledgeBaseTool implements Tool {
 
     private final Map<String, String> knowledgeBase;
 
-    public DatabaseTool() {
+    public KnowledgeBaseTool() {
         this.knowledgeBase = new ConcurrentHashMap<>();
         initializeKnowledgeBase();
     }
@@ -25,12 +26,23 @@ public class DatabaseTool implements Tool {
 
     @Override
     public String getName() {
-        return "database";
+        return "knowledge_base";
     }
 
     @Override
     public String getDescription() {
         return "Query the knowledge base for information. Input: search query (e.g., 'What is Spring Boot?')";
+    }
+
+    @Override
+    public Map<String, Object> getParameterSchema() {
+        return Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "query", Map.of("type", "string", "description", "Search query (e.g., 'What is Spring Boot?')")
+            ),
+            "required", List.of("query")
+        );
     }
 
     @Override
@@ -46,7 +58,7 @@ public class DatabaseTool implements Tool {
 
             return "No specific information found for: " + query + ". Available topics: " + String.join(", ", knowledgeBase.keySet());
         } catch (Exception e) {
-            return "Database error: " + e.getMessage();
+            return "Knowledge base error: " + e.getMessage();
         }
     }
 }

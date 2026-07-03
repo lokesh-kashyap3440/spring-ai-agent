@@ -9,6 +9,7 @@ public class AgentConfig {
 
     private int maxIterations = 6;
     private int memorySize = 20;
+    private int maxContextTokens = 3000;
 
     public int getMaxIterations() {
         return maxIterations;
@@ -24,5 +25,13 @@ public class AgentConfig {
 
     public void setMemorySize(int memorySize) {
         this.memorySize = memorySize;
+    }
+
+    public int getMaxContextTokens() {
+        return maxContextTokens;
+    }
+
+    public void setMaxContextTokens(int maxContextTokens) {
+        this.maxContextTokens = maxContextTokens;
     }
 }

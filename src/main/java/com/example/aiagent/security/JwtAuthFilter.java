@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Date;
 
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
@@ -40,10 +40,29 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         String token = authHeader.substring(7);
+
+        // Explicitly check if the token has expired before proceeding with other validation
+        Date expiration = jwtUtil.extractExpiration(token);
+        if (expiration != null && expiration.before(new Date())) {
+            log.warn("Expired JWT token from {}", request.getRemoteAddr());
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         if (!jwtUtil.validateToken(token)) {
             log.warn("Invalid JWT token from {}", request.getRemoteAddr());
             filterChain.doFilter(request, response);
             return;
+        }
+
+        // Token-to-client binding: check that the token's clientIp matches the request's remote address
+        String tokenClientIp = jwtUtil.extractClientIp(token);
+        if (!tokenClientIp.isEmpty()) {
+            String requestIp = resolveClientIp(request);
+            if (!tokenClientIp.equals(requestIp)) {
+                log.warn("Client IP mismatch for token subject '{}': token claims '{}' but request is from '{}'",
+                        jwtUtil.extractUsername(token), tokenClientIp, requestIp);
+            }
         }
 
         String username = jwtUtil.extractUsername(token);
@@ -67,5 +86,18 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Resolves the client IP from the request, checking the X-Forwarded-For header
+     * first (in case of reverse proxy), falling back to {@link HttpServletRequest#getRemoteAddr()}.
+     */
+    private static String resolveClientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        String remoteAddr = request.getRemoteAddr();
+        return remoteAddr != null ? remoteAddr : "";
     }
 }
