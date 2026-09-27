@@ -15,7 +15,7 @@
     <artifactId>ai-agent</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>Spring Boot AI Agent</name>
-    <description>AI Agent with Ollama, PostgreSQL+pgvector, and Kafka</description>
+    <description>AI Agent with Ollama/NVIDIA/LMStudio, PostgreSQL+pgvector, Kafka, Redis, and MCP</description>
 
     <properties>
         <java.version>25</java.version>
@@ -88,6 +88,19 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!-- Resilience4j for circuit breakers on AI provider failover -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-spring-boot4</artifactId>
+            <version>2.4.0</version>
+        </dependency>
+
+        <!-- Redis for distributed rate limiting (multi-instance scale-out) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
         <dependency>

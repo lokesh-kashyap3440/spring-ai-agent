@@ -41,6 +41,7 @@ public class SecurityConfig {
                 // kept permitted here as a safety net so dev builds work without auth.
                 .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
                 .requestMatchers("/", "/index.html", "/static/**", "/*.html", "/*.js", "/*.css").permitAll()
+                .requestMatchers("/mcp/**").authenticated()
                 .requestMatchers("/api/documents/**").hasAnyRole("USER", "ADMIN")
                 .anyRequest().authenticated()
             )

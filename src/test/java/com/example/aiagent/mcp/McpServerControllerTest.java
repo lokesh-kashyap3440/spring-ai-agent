@@ -111,9 +111,16 @@ class McpServerControllerTest {
         when(toolRegistry.getTool("knowledge_base")).thenReturn(databaseTool);
         when(toolRegistry.getTool("rag_search")).thenReturn(ragTool);
 
+        // Mock JWT validation: "valid-token" returns true, all others return false (Mockito default)
+        when(jwtUtil.validateToken("valid-token")).thenReturn(true);
+        when(jwtUtil.extractUsername("valid-token")).thenReturn("testuser");
+
         controller = new McpServerController(toolRegistry, ingestionService,
                 objectMapper, jwtUtil);
     }
+
+    private static final Optional<String> VALID_AUTH = Optional.of("Bearer valid-token");
+    private static final Optional<String> INVALID_AUTH = Optional.of("Bearer invalid-token");
 
     @Test
     void testInitialize() {
@@ -124,7 +131,7 @@ class McpServerControllerTest {
         request.putObject("params");
 
         ResponseEntity<Object> response = controller.handleStreamableHttp(request,
-                Optional.empty(), mockRequest);
+                VALID_AUTH, mockRequest);
 
         assertEquals(200, response.getStatusCode().value());
         ObjectNode body = (ObjectNode) response.getBody();
@@ -148,7 +155,7 @@ class McpServerControllerTest {
         request.putObject("params");
 
         ResponseEntity<Object> response = controller.handleStreamableHttp(request,
-                Optional.empty(), mockRequest);
+                VALID_AUTH, mockRequest);
 
         assertEquals(200, response.getStatusCode().value());
         ObjectNode body = (ObjectNode) response.getBody();
@@ -174,7 +181,7 @@ class McpServerControllerTest {
                 objectMapper.createObjectNode().put("city", "London"));
 
         ResponseEntity<Object> response = controller.handleStreamableHttp(request,
-                Optional.empty(), mockRequest);
+                VALID_AUTH, mockRequest);
 
         assertEquals(200, response.getStatusCode().value());
         String text = extractTextResponse(response);
@@ -189,7 +196,7 @@ class McpServerControllerTest {
                 objectMapper.createObjectNode().put("topic", "technology"));
 
         ResponseEntity<Object> response = controller.handleStreamableHttp(request,
-                Optional.empty(), mockRequest);
+                VALID_AUTH, mockRequest);
 
         assertEquals(200, response.getStatusCode().value());
         String text = extractTextResponse(response);
@@ -204,7 +211,7 @@ class McpServerControllerTest {
                 objectMapper.createObjectNode().put("expression", "2 + 2"));
 
         ResponseEntity<Object> response = controller.handleStreamableHttp(request,
-                Optional.empty(), mockRequest);
+                VALID_AUTH, mockRequest);
 
         assertEquals(200, response.getStatusCode().value());
         String text = extractTextResponse(response);
@@ -219,7 +226,7 @@ class McpServerControllerTest {
                 objectMapper.createObjectNode().put("query", "What is Spring Boot?"));
 
         ResponseEntity<Object> response = controller.handleStreamableHttp(request,
-                Optional.empty(), mockRequest);
+                VALID_AUTH, mockRequest);
 
         assertEquals(200, response.getStatusCode().value());
         String text = extractTextResponse(response);
@@ -234,7 +241,7 @@ class McpServerControllerTest {
                 objectMapper.createObjectNode().put("query", "refund policy"));
 
         ResponseEntity<Object> response = controller.handleStreamableHttp(request,
-                Optional.empty(), mockRequest);
+                VALID_AUTH, mockRequest);
 
         assertEquals(200, response.getStatusCode().value());
         String text = extractTextResponse(response);
@@ -247,7 +254,7 @@ class McpServerControllerTest {
                 objectMapper.createObjectNode());
 
         ResponseEntity<Object> response = controller.handleStreamableHttp(request,
-                Optional.empty(), mockRequest);
+                VALID_AUTH, mockRequest);
 
         assertEquals(200, response.getStatusCode().value());
         String text = extractTextResponse(response);
@@ -263,7 +270,7 @@ class McpServerControllerTest {
         request.putObject("params");
 
         ResponseEntity<Object> response = controller.handleStreamableHttp(request,
-                Optional.empty(), mockRequest);
+                VALID_AUTH, mockRequest);
 
         assertEquals(200, response.getStatusCode().value());
         ObjectNode body = (ObjectNode) response.getBody();
@@ -279,7 +286,7 @@ class McpServerControllerTest {
         request.put("jsonrpc", "2.0");
 
         ResponseEntity<Object> response = controller.handleStreamableHttp(request,
-                Optional.empty(), mockRequest);
+                VALID_AUTH, mockRequest);
 
         assertEquals(204, response.getStatusCode().value());
     }
@@ -298,7 +305,7 @@ class McpServerControllerTest {
         ObjectNode request = buildToolCall("upload_document", args);
 
         ResponseEntity<Object> response = controller.handleStreamableHttp(request,
-                Optional.empty(), mockRequest);
+                VALID_AUTH, mockRequest);
 
         assertEquals(200, response.getStatusCode().value());
         String text = extractTextResponse(response);
@@ -316,7 +323,7 @@ class McpServerControllerTest {
         ObjectNode request = buildToolCall("upload_document", args);
 
         ResponseEntity<Object> response = controller.handleStreamableHttp(request,
-                Optional.empty(), mockRequest);
+                VALID_AUTH, mockRequest);
 
         assertEquals(200, response.getStatusCode().value());
         String text = extractTextResponse(response);
@@ -354,7 +361,7 @@ class McpServerControllerTest {
     @Test
     void testSseConnection() throws Exception {
         ResponseEntity<Object> response = controller.handleStreamableHttp(
-                objectMapper.createObjectNode(), Optional.empty(), mockRequest);
+                objectMapper.createObjectNode(), VALID_AUTH, mockRequest);
 
         assertEquals(204, response.getStatusCode().value());
     }
@@ -366,7 +373,7 @@ class McpServerControllerTest {
         request.put("method", "initialize");
 
         ResponseEntity<Void> response = controller.handleMessage(request,
-                "nonexistent", Optional.empty(), mockRequest);
+                "nonexistent", VALID_AUTH, mockRequest);
 
         assertEquals(404, response.getStatusCode().value());
     }
@@ -382,9 +389,55 @@ class McpServerControllerTest {
         params.putObject("arguments");
         request.set("params", params);
 
+         ResponseEntity<Object> response = controller.handleStreamableHttp(request,
+                VALID_AUTH, mockRequest);
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    @Test
+    void testStreamableHttpUnauthorizedNoAuth() {
+        ObjectNode request = buildToolCall("get_weather",
+                objectMapper.createObjectNode().put("city", "London"));
+
         ResponseEntity<Object> response = controller.handleStreamableHttp(request,
                 Optional.empty(), mockRequest);
-        assertEquals(200, response.getStatusCode().value());
+
+        assertEquals(401, response.getStatusCode().value());
+    }
+
+    @Test
+    void testStreamableHttpUnauthorizedInvalidToken() {
+        ObjectNode request = buildToolCall("get_weather",
+                objectMapper.createObjectNode().put("city", "London"));
+
+        ResponseEntity<Object> response = controller.handleStreamableHttp(request,
+                INVALID_AUTH, mockRequest);
+
+        assertEquals(401, response.getStatusCode().value());
+    }
+
+    @Test
+    void testMessageUnauthorizedNoAuth() {
+        ObjectNode request = objectMapper.createObjectNode();
+        request.put("id", "1");
+        request.put("method", "initialize");
+
+        ResponseEntity<Void> response = controller.handleMessage(request,
+                "nonexistent", Optional.empty(), mockRequest);
+
+        assertEquals(401, response.getStatusCode().value());
+    }
+
+    @Test
+    void testMessageUnauthorizedInvalidToken() {
+        ObjectNode request = objectMapper.createObjectNode();
+        request.put("id", "1");
+        request.put("method", "initialize");
+
+        ResponseEntity<Void> response = controller.handleMessage(request,
+                "nonexistent", INVALID_AUTH, mockRequest);
+
+        assertEquals(401, response.getStatusCode().value());
     }
 
     private ObjectNode buildToolCall(String name, ObjectNode arguments) {

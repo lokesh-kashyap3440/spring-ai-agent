@@ -1,3 +1,5 @@
+> **Architecture-first workflow:** Follow `~/.config/opencode/instructions.md` -- think architect-first, add Mermaid diagrams, line-by-line docs, and prompt me to read before accepting output.
+
 # Comprehensive Security & Architecture Refactoring (July 3, 2026)
 
 Complete overhaul of security, architecture, and code quality across 4 phases. 181 tests pass. See `CLAUDE.md` for updated project guidance.
@@ -419,3 +421,106 @@ Fixed compilation and runtime errors in tests after migration:
 ## TODO
 
 - [ ] Create entirely new frontend from scratch using **Tailwind CSS v4** with login, chat, document upload, and tool toggle UI
+
+---
+
+# Production Hardening (August 29, 2026)
+
+## MCP JWT Authentication — Strict Enforcement
+
+| File | Change |
+|------|--------|
+| `mcp/McpServerController.java` | Replaced lenient `validateMcpAuthHeader()` (warn-only) with strict `validateMcpAuth()` that returns 401 on missing/invalid JWT. All three MCP endpoints (SSE `/mcp/sse`, Streamable HTTP `/mcp`, message `/mcp/message`) now reject unauthenticated requests. SSE endpoint returns an error emitter when auth fails. |
+| `security/SecurityConfig.java` | Added explicit `.requestMatchers("/mcp/**").authenticated()` to enforce JWT on MCP endpoints via Spring Security filter chain |
+| `mcp/McpServerControllerTest.java` | Updated all test methods to pass valid auth header (`VALID_AUTH`); added `INVALID_AUTH` for 401 tests. Added 4 new tests: `testStreamableHttpUnauthorizedNoAuth`, `testStreamableHttpUnauthorizedInvalidToken`, `testMessageUnauthorizedNoAuth`, `testMessageUnauthorizedInvalidToken` |
+
+### Test Summary
+| Test | Tests |
+|------|-------|
+| `McpServerControllerTest` | 22 (updated 15 to use `VALID_AUTH`, added 4 unauthorized tests, kept 3 content detection tests) |
+
+### Global Exception Handler
+
+| File | Change |
+|------|--------|
+| `controller/GlobalExceptionHandler.java` | Added `@ExceptionHandler(ResponseStatusException.class)` to handle 401s from MCP auth and other HTTP status exceptions, returning the correct HTTP status code instead of falling through to the generic 500 handler |
+
+---
+
+## Circuit Breakers — Resilience4j Integration
+
+| File | Change |
+|------|--------|
+| `pom.xml` | Added `io.github.resilience4j:resilience4j-spring-boot4:2.4.0` dependency |
+| `config/AppConfig.java` | Added `CircuitBreakerRegistry` bean with: 50% failure threshold, 6-call sliding window, 3 min calls, 60s open state, 120s timeout |
+| `service/AiProviderChain.java` | Refactored to use `CircuitBreaker` per provider. Each provider call is wrapped in a circuit breaker. If a circuit is OPEN or the call throws an exception, the chain automatically falls back to the next available provider. Added `ProviderSlot` record combining provider + circuit breaker. Token accumulation now occurs only from the successful provider. |
+| `service/AiProviderChainTest.java` | Updated constructor calls to pass `CircuitBreakerRegistry`. Changed fallback tests from `isAvailable()=false` to `chat()` throwing exceptions (matching circuit breaker semantics). Added `testTokenAccumulationFromSuccessfulProvider` test. |
+| `application.yml` | Added `app.resilience4j.circuitbreaker.instances` config for `OllamaService`, `NvidiaService`, `LmStudioService` (50% threshold, 6-window, 3 min calls, 60s open, 120s timeout) |
+
+### Circuit Breaker Behavior
+- **CLOSED**: Calls proceed normally; failures are counted
+- **OPEN**: All calls immediately fail with `CallNotPermittedException`; chain falls through to next provider
+- **HALF_OPEN**: After 60s cooldown, one trial call is allowed; success closes the circuit, failure re-opens it
+
+### Test Summary
+| Test | Tests |
+|------|-------|
+| `AiProviderChainTest` | 10 (updated 8 existing tests for new constructor + circuit breaker behavior, added `testTokenAccumulationFromSuccessfulProvider`) |
+
+---
+
+## Kafka — Production Configuration
+
+| File | Change |
+|------|--------|
+| `config/KafkaConfig.java` | Added `ALLOW_AUTO_CREATE_TOPICS_CONFIG=false` on producer; added `eventsTopic()`, `chatTopic()` `NewTopic` beans for explicit topic creation (6 partitions, configurable replication factor); added `adminClient()` bean with startup connectivity validation (fails fast if Kafka is unreachable) |
+| `application.yml` | Added `app.kafka.replication-factor` (default 1 for dev, set to 3 for production); added `spring.kafka.admin.auto-create=false`; added producer transaction-id-prefix, idempotence, and timeout properties |
+| `docker-compose.yml` | Set `KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"` on Kafka broker |
+| `config/KafkaConfigTest.java` | Updated to set new `@Value` fields via `ReflectionTestUtils`; added `testTopicCreation` verifying 6 partitions and configurable replication |
+
+### Production Settings
+```yaml
+app:
+  kafka:
+    replication-factor: 3  # Override via KAFKA_REPLICATION_FACTOR env var
+spring:
+  kafka:
+    admin:
+      auto-create: false  # Explicit topic creation only
+```
+
+### Test Summary
+| Test | Tests |
+|------|-------|
+| `KafkaConfigTest` | 3 (updated 2 for new fields, added 1 for topic creation) |
+
+---
+
+## Distributed Rate Limiting — Redis Backend
+
+| File | Change |
+|------|--------|
+| `pom.xml` | Added `spring-boot-starter-data-redis` dependency |
+| `security/RateLimitingFilter.java` | Rewrote to use `StringRedisTemplate` for distributed atomic `INCR` counter with 60s TTL. Falls back to in-memory `ConcurrentHashMap` if Redis is unavailable (with warning log). Preserved in-memory fallback with cleanup scheduler. |
+| `docker-compose.yml` | Added `redis` service (redis:7-alpine, 256mb maxmemory, LRU eviction); added Redis env vars to app service; added `redis` healthcheck and dependency |
+| `application.yml` | Added `spring.redis` config (host, port, timeout, lettuce pool settings) |
+
+### Rate Limiting Behavior
+- **Redis backend (primary)**: `INCR` + `EXPIRE` on key `rate_limit:auth:{ip}` per 60-second window
+- **In-memory backend (fallback)**: `ConcurrentHashMap` with `AtomicInteger` per IP
+- **Automatic fallback**: If Redis operations fail at runtime, silently degrades to in-memory
+- **Limit**: 5 requests per 60 seconds per IP on `/api/auth/**` endpoints
+
+### Configuration
+```yaml
+spring:
+  redis:
+    host: ${SPRING_REDIS_HOST:localhost}
+    port: ${SPRING_REDIS_PORT:6379}
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: ${REDIS_POOL_MAX_ACTIVE:8}
+        max-idle: ${REDIS_POOL_MAX_IDLE:8}
+        min-idle: ${REDIS_POOL_MIN_IDLE:1}
+```

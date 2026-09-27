@@ -4,7 +4,6 @@ import com.example.aiagent.security.JwtUtil;
 import com.example.aiagent.service.DocumentIngestionService;
 import com.example.aiagent.tools.Tool;
 import com.example.aiagent.tools.ToolRegistry;
-import com.example.aiagent.util.ByteArrayMultipartFile;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -12,6 +11,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -53,14 +53,18 @@ public class McpServerController {
     }
 
     /**
-     * MCP SSE endpoint. MCP clients SHOULD pass an {@code Authorization: Bearer <token>} header.
-     * If the header is missing, the connection is still accepted for backward compatibility,
-     * but a warning is logged. When provided, the JWT is validated and the associated user
-     * is stored with the session.
+     * MCP SSE endpoint. MCP clients MUST pass an {@code Authorization: Bearer <token>} header.
+     * Returns 401 if the header is missing or the JWT is invalid.
      */
     @GetMapping(value = "/sse", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter connect(@RequestHeader("Authorization") Optional<String> authHeader,
                               HttpServletRequest request) {
+        if (!validateMcpAuth(authHeader, request)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED, "Unauthorized: valid JWT required");
+        }
+
+        String username = jwtUtil.extractUsername(authHeader.get().substring(7));
         // Atomically check and reserve a connection slot to avoid TOCTOU race
         int current = connectionCount.incrementAndGet();
         if (current > MAX_SSE_CONNECTIONS) {
@@ -69,23 +73,8 @@ public class McpServerController {
         }
 
         String sessionId = UUID.randomUUID().toString();
-        String username = "anonymous";
 
-        // Validate JWT if present — lenient for backward compatibility
-        if (authHeader.isPresent() && authHeader.get().startsWith("Bearer ")) {
-            String token = authHeader.get().substring(7);
-            if (jwtUtil.validateToken(token)) {
-                username = jwtUtil.extractUsername(token);
-                log.info("SSE connect: authenticated user '{}' for session {}", username, sessionId);
-            } else {
-                log.warn("SSE connect: invalid JWT token from {} (session {})",
-                        request.getRemoteAddr(), sessionId);
-            }
-        } else {
-            log.warn("SSE connect without Authorization header from {} (session {}) - "
-                    + "MCP clients should pass Authorization: Bearer <token>",
-                    request.getRemoteAddr(), sessionId);
-        }
+        log.info("SSE connect: authenticated user '{}' for session {}", username, sessionId);
 
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         emitters.put(sessionId, emitter);
@@ -120,15 +109,18 @@ public class McpServerController {
     }
 
     /**
-     * MCP Streamable HTTP endpoint. MCP clients MUST pass an {@code Authorization: Bearer <token>} header.
-     * If the JWT is missing or invalid, a warning is logged but the request is still processed
-     * for backward compatibility.
+     * MCP Streamable HTTP endpoint. MCP clients MUST pass an
+     * {@code Authorization: Bearer <token>} header with a valid JWT.
+     * Returns 401 if the JWT is missing or invalid.
      */
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Object> handleStreamableHttp(@RequestBody ObjectNode request,
                                                        @RequestHeader("Authorization") Optional<String> authHeader,
                                                        HttpServletRequest servletRequest) {
-        validateMcpAuthHeader(authHeader, servletRequest);
+        if (!validateMcpAuth(authHeader, servletRequest)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Unauthorized: valid JWT required");
+        }
         ObjectNode response = dispatchJsonRpc(request);
         if (response == null) {
             return ResponseEntity.noContent().build();
@@ -137,16 +129,18 @@ public class McpServerController {
     }
 
     /**
-     * MCP message endpoint (SSE-based messaging). MCP clients SHOULD pass an
-     * {@code Authorization: Bearer <token>} header. If the JWT is missing or invalid,
-     * a warning is logged but the request is still processed for backward compatibility.
+     * MCP message endpoint (SSE-based messaging). MCP clients MUST pass an
+     * {@code Authorization: Bearer <token>} header with a valid JWT.
+     * Returns 401 if the JWT is missing or invalid.
      */
     @PostMapping(value = "/message", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Void> handleMessage(@RequestBody ObjectNode request,
                                               @RequestParam String sessionId,
                                               @RequestHeader("Authorization") Optional<String> authHeader,
                                               HttpServletRequest servletRequest) {
-        validateMcpAuthHeader(authHeader, servletRequest);
+        if (!validateMcpAuth(authHeader, servletRequest)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
 
         SseEmitter emitter = emitters.get(sessionId);
         if (emitter == null) {
@@ -169,21 +163,23 @@ public class McpServerController {
     }
 
     /**
-     * Validates the Authorization header for MCP endpoints.
-     * Lenient: logs a warning if missing or invalid, but does not reject the request.
+     * Strictly validates the Authorization header for MCP endpoints.
+     * Returns {@code true} if the JWT is present, well-formed, and valid.
+     * Returns {@code false} (and logs a warning) if the header is missing,
+     * not a Bearer token, or the JWT fails validation.
      */
-    private void validateMcpAuthHeader(Optional<String> authHeader, HttpServletRequest request) {
+    private boolean validateMcpAuth(Optional<String> authHeader, HttpServletRequest request) {
         if (authHeader.isEmpty() || !authHeader.get().startsWith("Bearer ")) {
-            log.warn("MCP request without valid Authorization header from {} - "
-                    + "MCP clients should pass Authorization: Bearer <token>",
-                    request.getRemoteAddr());
-            return;
+            log.warn("MCP request without Authorization header from {}", request.getRemoteAddr());
+            return false;
         }
 
         String token = authHeader.get().substring(7);
         if (!jwtUtil.validateToken(token)) {
             log.warn("MCP request with invalid JWT from {}", request.getRemoteAddr());
+            return false;
         }
+        return true;
     }
 
     private ObjectNode dispatchJsonRpc(ObjectNode request) {

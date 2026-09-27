@@ -3,6 +3,8 @@ package com.example.aiagent.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
@@ -47,5 +49,28 @@ public class AppConfig {
         mapper.registerModule(new JavaTimeModule());
         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         return mapper;
+    }
+
+    /**
+     * Circuit breaker registry for AI provider failover.
+     * Each AI service gets its own circuit breaker with:
+     * - 50% failure rate threshold (3 out of 6 calls)
+     * - 30-second sliding window
+     * - 60-second cooldown after opening
+     * - 120-second timeout per call (matches AI provider timeout)
+     */
+    @Bean
+    public CircuitBreakerRegistry circuitBreakerRegistry() {
+        CircuitBreakerConfig config = CircuitBreakerConfig.custom()
+                .failureRateThreshold(50)
+                .slidingWindowSize(6)
+                .minimumNumberOfCalls(3)
+                .waitDurationInOpenState(Duration.ofSeconds(60))
+                .timeoutDuration(Duration.ofSeconds(120))
+                .build();
+
+        CircuitBreakerRegistry registry = CircuitBreakerRegistry.ofDefaults();
+        registry.circuitBreakerConfig(config);
+        return registry;
     }
 }

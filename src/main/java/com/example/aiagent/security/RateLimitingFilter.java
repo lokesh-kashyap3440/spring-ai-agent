@@ -6,11 +6,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ObjectProvider;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -20,9 +23,26 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(RateLimitingFilter.class);
 
     private static final int MAX_ATTEMPTS = 5;
-    private static final long WINDOW_MS = 60_000;
+    private static final long WINDOW_SECONDS = 60;
+    private static final String REDIS_KEY_PREFIX = "rate_limit:auth:";
 
-    private final ConcurrentHashMap<String, RateLimitEntry> attempts = new ConcurrentHashMap<>();
+    private final StringRedisTemplate redisTemplate;
+    private final boolean redisAvailable;
+
+    // Fallback in-memory store used when Redis is not configured or unavailable
+    private final ConcurrentHashMap<String, RateLimitEntry> fallbackAttempts = new ConcurrentHashMap<>();
+
+    public RateLimitingFilter(ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
+        StringRedisTemplate template = redisTemplateProvider.getIfAvailable();
+        this.redisTemplate = template;
+        this.redisAvailable = template != null;
+        if (redisAvailable) {
+            log.info("RateLimitingFilter initialized with Redis backend");
+        } else {
+            log.warn("RateLimitingFilter initialized with in-memory fallback (Redis not configured). " +
+                    "Rate limiting will not be effective across multiple instances.");
+        }
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -36,18 +56,49 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         }
 
         String ip = request.getRemoteAddr();
+        String key = REDIS_KEY_PREFIX + ip;
         long now = System.currentTimeMillis();
 
-        RateLimitEntry entry = attempts.get(ip);
-        if (entry == null || (now - entry.windowStart()) > WINDOW_MS) {
-            attempts.put(ip, new RateLimitEntry(new AtomicInteger(1), now));
+        if (redisAvailable) {
+            try {
+                // Atomic increment via Redis; first request sets the TTL
+                Long count = redisTemplate.opsForValue().increment(key);
+                if (count != null && count == 1) {
+                    redisTemplate.expire(key, Duration.ofSeconds(WINDOW_SECONDS));
+                }
+                if (count != null && count > MAX_ATTEMPTS) {
+                    log.warn("Rate limit exceeded for IP: {} (Redis backend, {} attempts)", ip, count);
+                    response.setStatus(429);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"error\":\"Too many requests. Please try again later.\"}");
+                    return;
+                }
+            } catch (Exception e) {
+                log.warn("Redis rate limiting failed (falling back to in-memory): {}", e.getMessage());
+                rateLimitInMemory(ip, now, response, filterChain, request);
+                return;
+            }
+        } else {
+            rateLimitInMemory(ip, now, response, filterChain, request);
+            return;
+        }
+
+        filterChain.doFilter(request, response);
+    }
+
+    private void rateLimitInMemory(String ip, long now, HttpServletResponse response,
+                                   FilterChain filterChain, HttpServletRequest request)
+            throws IOException, ServletException {
+        RateLimitEntry entry = fallbackAttempts.get(ip);
+        if (entry == null || (now - entry.windowStart()) > (WINDOW_SECONDS * 1000)) {
+            fallbackAttempts.put(ip, new RateLimitEntry(new AtomicInteger(1), now));
             filterChain.doFilter(request, response);
             return;
         }
 
         int count = entry.count().incrementAndGet();
         if (count > MAX_ATTEMPTS) {
-            log.warn("Rate limit exceeded for IP: {} ({} attempts in last minute)", ip, count);
+            log.warn("Rate limit exceeded for IP: {} (in-memory backend, {} attempts in last minute)", ip, count);
             response.setStatus(429);
             response.setContentType("application/json");
             response.getWriter().write("{\"error\":\"Too many requests. Please try again later.\"}");
@@ -58,17 +109,17 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Periodic cleanup of stale rate-limit entries. Runs every 60 seconds.
+     * Periodic cleanup of stale in-memory rate-limit entries. Runs every 60 seconds.
      * Evicts entries whose time window has expired.
      */
     @Scheduled(fixedRate = 60_000)
     public void cleanup() {
         long now = System.currentTimeMillis();
-        int before = attempts.size();
-        attempts.entrySet().removeIf(e -> (now - e.getValue().windowStart()) > WINDOW_MS);
-        int removed = before - attempts.size();
+        int before = fallbackAttempts.size();
+        fallbackAttempts.entrySet().removeIf(e -> (now - e.getValue().windowStart()) > (WINDOW_SECONDS * 1000));
+        int removed = before - fallbackAttempts.size();
         if (removed > 0) {
-            log.debug("Rate limit cleanup: removed {} stale entries, {} remaining", removed, attempts.size());
+            log.debug("Rate limit cleanup: removed {} stale entries, {} remaining", removed, fallbackAttempts.size());
         }
     }
 

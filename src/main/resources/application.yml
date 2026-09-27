@@ -34,6 +34,16 @@ spring:
     hikari:
       maximum-pool-size: ${DATASOURCE_POOL_SIZE:10}
 
+  redis:
+    host: ${SPRING_REDIS_HOST:localhost}
+    port: ${SPRING_REDIS_PORT:6379}
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: ${REDIS_POOL_MAX_ACTIVE:8}
+        max-idle: ${REDIS_POOL_MAX_IDLE:8}
+        min-idle: ${REDIS_POOL_MIN_IDLE:1}
+
   sql:
     init:
       mode: always
@@ -45,9 +55,13 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       acks: ${KAFKA_PRODUCER_ACKS:all}
       retries: ${KAFKA_PRODUCER_RETRIES:3}
+      transaction-id-prefix: ${KAFKA_PRODUCER_TRANSACTION_ID_PREFIX:}
       properties:
         "[spring.json.trusted.packages]": "com.example.aiagent.*"
         "[spring.json.use.type.headers]": false
+        "[enable.idempotence]": true
+        "[max.block.ms]": 2000
+        "[request.timeout.ms]": 2000
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID:ai-agent-group}
       auto-offset-reset: ${KAFKA_CONSUMER_AUTO_OFFSET_RESET:earliest}
@@ -58,6 +72,8 @@ spring:
         "[spring.json.use.type.headers]": false
       concurrency: ${KAFKA_CONSUMER_CONCURRENCY:3}
       max-poll-records: ${KAFKA_CONSUMER_MAX_POLL_RECORDS:500}
+    admin:
+      auto-create: ${KAFKA_AUTO_CREATE_TOPICS:false}
 
 management:
   endpoints:
@@ -87,7 +103,36 @@ logging:
 
 app:
   ai:
-    provider: ${AI_PROVIDER:ollama}
+    provider: ${AI_PROVIDER:lmstudio}
+
+  resilience4j:
+    circuitbreaker:
+      instances:
+        OllamaService:
+          failure-rate-threshold: 50
+          sliding-window-size: 6
+          minimum-number-of-calls: 3
+          wait-duration-in-open-state: 60s
+          timeout-duration: 120s
+        NvidiaService:
+          failure-rate-threshold: 50
+          sliding-window-size: 6
+          minimum-number-of-calls: 3
+          wait-duration-in-open-state: 60s
+          timeout-duration: 120s
+        LmStudioService:
+          failure-rate-threshold: 50
+          sliding-window-size: 6
+          minimum-number-of-calls: 3
+          wait-duration-in-open-state: 60s
+          timeout-duration: 120s
+
+  lmstudio:
+    base-url: ${LM_STUDIO_BASE_URL:http://localhost:1234/v1}
+    model: ${LM_STUDIO_MODEL:meta/llama-3.1-8b-instruct}
+    timeout: ${LM_STUDIO_TIMEOUT:120}
+    max-tokens: ${LM_STUDIO_MAX_TOKENS:2048}
+    temperature: ${LM_STUDIO_TEMPERATURE:0.7}
 
   ollama:
     base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
@@ -111,10 +156,11 @@ app:
   rag:
     top-k: ${RAG_TOP_K:5}
     similarity-threshold: ${RAG_SIMILARITY_THRESHOLD:0.5}
-  kafka:
-    topics:
-      events: ${KAFKA_TOPIC_EVENTS:ai-agent-events}
-      chat: ${KAFKA_TOPIC_CHAT:ai-agent-chat}
+   kafka:
+     topics:
+       events: ${KAFKA_TOPIC_EVENTS:ai-agent-events}
+       chat: ${KAFKA_TOPIC_CHAT:ai-agent-chat}
+     replication-factor: ${KAFKA_REPLICATION_FACTOR:1}
   mcp:
     server:
       name: ${MCP_SERVER_NAME:ai-agent-tools}

@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -71,5 +72,18 @@ public class GlobalExceptionHandler {
         String message = buildErrorMessage(correlationId, "Internal error: " + ex.getMessage());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(errorBody(message, correlationId));
+    }
+
+    /**
+     * Handles {@link ResponseStatusException} (e.g., 401 Unauthorized from MCP auth)
+     * by returning the appropriate HTTP status code instead of falling through to
+     * the generic 500 handler.
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleResponseStatusException(ResponseStatusException ex) {
+        log.warn("HTTP {}: {}", ex.getStatusCode().value(), ex.getReason());
+        String correlationId = UUID.randomUUID().toString();
+        return ResponseEntity.status(ex.getStatusCode())
+                .body(errorBody(ex.getReason() != null ? ex.getReason() : ex.getMessage(), correlationId));
     }
 }
